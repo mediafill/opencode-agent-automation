@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "max_agents": 4,
+  "auto_start": true,
+  "log_level": "INFO",
+  "task_timeout": 300,
+  "enable_monitoring": true
+}

@@ -1,0 +1,152 @@
+version: "3.8"
+
+services:
+  master-orchestrator:
+    build: .
+    container_name: opencode-master
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - CONFIG_FILE=/app/master_orchestrator_config.json
+      - LOG_LEVEL=INFO
+      - JWT_SECRET=${JWT_SECRET:-changeme123}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+    volumes:
+      - ./data:/data
+      - ./certs:/certs:ro
+      - ./logs:/logs
+    networks:
+      - opencode-network
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  slave-agent-1:
+    build: .
+    container_name: opencode-slave-1
+    environment:
+      - AGENT_ROLE=slave
+      - MASTER_URL=http://master-orchestrator:8080
+      - AGENT_ID=slave_001
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./certs:/certs:ro
+      - ./logs:/logs
+    networks:
+      - opencode-network
+    depends_on:
+      - master-orchestrator
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+
+  slave-agent-2:
+    build: .
+    container_name: opencode-slave-2
+    environment:
+      - AGENT_ROLE=slave
+      - MASTER_URL=http://master-orchestrator:8080
+      - AGENT_ID=slave_002
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./certs:/certs:ro
+      - ./logs:/logs
+    networks:
+      - opencode-network
+    depends_on:
+      - master-orchestrator
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    container_name: opencode-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - opencode-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: opencode-postgres
+    environment:
+      - POSTGRES_DB=opencode
+      - POSTGRES_USER=opencode
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-opencode123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - opencode-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: opencode-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - opencode-network
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=200h"
+      - "--web.enable-lifecycle"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: opencode-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - opencode-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  opencode-network:
+    driver: bridge

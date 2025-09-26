@@ -1,0 +1,52 @@
+{
+  "auto_delegate": true,
+  "max_concurrent_agents": 10,
+  "monitor_interval": 5,
+  "auto_retry_failed": true,
+  "spawn_method": "docker",
+  "agent_image": "opencode-agent:latest",
+  "agent_network": "opencode-network",
+  "resource_limits": {
+    "cpu": "2.0",
+    "memory": "4Gi",
+    "storage": "10Gi"
+  },
+  "resource_requests": {
+    "cpu": "0.5",
+    "memory": "1Gi",
+    "storage": "2Gi"
+  },
+  "health_check": {
+    "interval": 30,
+    "timeout": 10,
+    "retries": 3,
+    "start_period": 60
+  },
+  "scaling": {
+    "min_agents": 2,
+    "max_agents": 20,
+    "scale_up_threshold": 80,
+    "scale_down_threshold": 20,
+    "cooldown_period": 300
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "json",
+    "max_size": "100m",
+    "max_files": 5,
+    "compress": true
+  },
+  "communication": {
+    "protocol": "grpc",
+    "timeout": 30,
+    "max_message_size": "4MB",
+    "compression": "gzip"
+  },
+  "security": {
+    "enable_tls": true,
+    "ca_cert": "/certs/ca.crt",
+    "client_cert": "/certs/client.crt",
+    "client_key": "/certs/client.key",
+    "verify_ssl": true
+  }
+}

@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode-master-orchestrator
+  namespace: opencode-system
+  labels:
+    app: opencode-master
+    component: orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencode-master
+      component: orchestrator
+  template:
+    metadata:
+      labels:
+        app: opencode-master
+        component: orchestrator
+    spec:
+      containers:
+        - name: master-orchestrator
+          image: opencode-agent:latest
+          ports:
+            - containerPort: 8080
+              name: api
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: CONFIG_FILE
+              value: "/app/master_orchestrator_config.json"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: jwt-secret
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: admin-password
+            - name: POSTGRES_HOST
+              value: "opencode-postgres"
+            - name: REDIS_HOST
+              value: "opencode-redis"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/master_orchestrator_config.json
+              subPath: master_orchestrator_config.json
+            - name: data-volume
+              mountPath: /data
+            - name: certs-volume
+              mountPath: /certs
+              readOnly: true
+            - name: logs-volume
+              mountPath: /logs
+          resources:
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: config-volume
+          configMap:
+            name: opencode-config
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: opencode-data-pvc
+        - name: certs-volume
+          secret:
+            secretName: opencode-certs
+        - name: logs-volume
+          emptyDir: {}
+      serviceAccountName: opencode-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000

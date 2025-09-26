@@ -4,5 +4,8 @@
   "monitor_interval": 5,
   "auto_retry_failed": true,
   "delegation_history": [],
-  "spawn_method": "launch_script"
+  "spawn_method": "launch_script",
+  "enforce_agent_system": true,
+  "master_slave_required": true,
+  "agent_registration_required": true
 }

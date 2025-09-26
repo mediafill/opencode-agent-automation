@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencode-config
+  namespace: opencode-system
+data:
+  master_orchestrator_config.json: |
+    {
+      "health_check_interval": 30,
+      "agent_timeout": 300,
+      "max_slave_agents": 20,
+      "master_id": "master_prod_001",
+      "auto_scaling": true,
+      "load_balancing": "round_robin",
+      "log_level": "INFO",
+      "enable_metrics": true,
+      "metrics_port": 9090,
+      "database_path": "/data/master.db",
+      "backup_interval": 3600,
+      "max_concurrent_tasks": 50,
+      "task_queue_size": 1000,
+      "enable_ssl": true,
+      "ssl_cert_path": "/certs/master.crt",
+      "ssl_key_path": "/certs/master.key",
+      "api_port": 8080,
+      "api_host": "0.0.0.0",
+      "cors_origins": ["*"],
+      "rate_limit": 100,
+      "enable_auth": true,
+      "jwt_secret": "${JWT_SECRET}",
+      "admin_password": "${ADMIN_PASSWORD}",
+      "vector_db_path": "/data/vector.db",
+      "cache_ttl": 3600,
+      "enable_monitoring": true,
+      "monitoring_endpoint": "http://monitoring:9090",
+      "alert_threshold_cpu": 80,
+      "alert_threshold_memory": 85,
+      "alert_threshold_disk": 90
+    }
+  orchestrator_config.json: |
+    {
+      "auto_delegate": true,
+      "max_concurrent_agents": 10,
+      "monitor_interval": 5,
+      "auto_retry_failed": true,
+      "spawn_method": "kubernetes",
+      "agent_image": "opencode-agent:latest",
+      "agent_network": "opencode-network",
+      "resource_limits": {
+        "cpu": "2.0",
+        "memory": "4Gi",
+        "storage": "10Gi"
+      },
+      "resource_requests": {
+        "cpu": "0.5",
+        "memory": "1Gi",
+        "storage": "2Gi"
+      },
+      "health_check": {
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "start_period": 60
+      },
+      "scaling": {
+        "min_agents": 2,
+        "max_agents": 20,
+        "scale_up_threshold": 80,
+        "scale_down_threshold": 20,
+        "cooldown_period": 300
+      },
+      "logging": {
+        "level": "INFO",
+        "format": "json",
+        "max_size": "100m",
+        "max_files": 5,
+        "compress": true
+      },
+      "communication": {
+        "protocol": "grpc",
+        "timeout": 30,
+        "max_message_size": "4MB",
+        "compression": "gzip"
+      },
+      "security": {
+        "enable_tls": true,
+        "ca_cert": "/certs/ca.crt",
+        "client_cert": "/certs/client.crt",
+        "client_key": "/certs/client.key",
+        "verify_ssl": true
+      }
+    }
