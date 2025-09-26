@@ -89,267 +89,25 @@ class TaskDelegator:
 
         return project_info
 
-    def generate_tasks(self, objective: str) -> List[Dict]:
+    def generate_tasks(self, objective: str, use_opencode: bool = True) -> List[Dict]:
         """
-        Generate intelligent task list based on user objective and project analysis.
-        
-        This method implements the core business logic for task delegation by analyzing
-        the user's objective statement and mapping it to appropriate development tasks.
-        It uses keyword detection and contextual analysis to create a prioritized
-        task queue that matches the project's specific needs.
-        
-        Args:
-            objective: User's high-level goal or requirement description
-            
-        Returns:
-            List of task dictionaries, each containing:
-            - id: Unique task identifier with timestamp
-            - type: Task category (e.g., 'security', 'testing', 'frontend')
-            - priority: Urgency level ('high', 'medium', 'low')
-            - description: Detailed task description for the agent
-            - files_pattern: Glob pattern specifying which files to examine
+        Generate tasks - tries OpenCode analysis first, falls back to simple tasks.
+        Uses the same OpenCode calling mechanism as the agents themselves.
         """
-        project_info = self.detect_project_type()
-        tasks = []
-
-        # Convert objective to lowercase for case-insensitive keyword matching
-        objective_lower = objective.lower()
-
-        # Handle detailed objectives by creating custom implementation tasks
-        # Long objectives (>8 words) likely contain specific, actionable requirements
-        if len(objective.split()) > 8:  # Long, detailed objectives
-            tasks.append({
-                'id': f'custom_objective_{int(time.time())}',
-                'type': 'custom',
-                'priority': 'high',
-                'description': f'Implement specific requirement: {objective}',
-                'files_pattern': '**/*'
-            })
-
-        # Frontend/Dashboard tasks
-        if any(word in objective_lower for word in ['frontend', 'dashboard', 'viewer', 'ui', 'interface', 'html', 'css', 'javascript']):
-            tasks.extend([
-                {
-                    'id': f'frontend_implementation_{int(time.time())}',
-                    'type': 'frontend',
-                    'priority': 'high',
-                    'description': f'Implement frontend component: {objective}',
-                    'files_pattern': '**/*.{html,css,js,ts,vue,react}'
-                },
-                {
-                    'id': f'frontend_styling_{int(time.time())}',
-                    'type': 'frontend',
-                    'priority': 'medium',
-                    'description': 'Add responsive styling and improve user experience',
-                    'files_pattern': '**/*.{css,scss,html}'
-                }
-            ])
-
-        # Security tasks
-        if any(word in objective_lower for word in ['security', 'secure', 'production', 'audit']):
-            tasks.extend([
-                {
-                    'id': f'security_scan_{int(time.time())}',
-                    'type': 'security',
-                    'priority': 'high',
-                    'description': 'Scan for common security vulnerabilities: SQL injection, XSS, CSRF, insecure dependencies',
-                    'files_pattern': '**/*.{py,js,php,rb,ts,java}'
-                },
-                {
-                    'id': f'auth_review_{int(time.time())}',
-                    'type': 'security',
-                    'priority': 'high',
-                    'description': 'Review and strengthen authentication and authorization mechanisms',
-                    'files_pattern': '**/auth/**/*,**/login/**/*,**/security/**/*'
-                },
-                {
-                    'id': f'input_validation_{int(time.time())}',
-                    'type': 'security',
-                    'priority': 'high',
-                    'description': 'Add comprehensive input validation and sanitization for all user inputs',
-                    'files_pattern': '**/*.{py,js,php,rb,ts}'
-                }
-            ])
-
-        # Error handling and logging tasks
-        if any(word in objective_lower for word in ['error', 'logging', 'log', 'exception', 'handling']):
-            tasks.extend([
-                {
-                    'id': f'error_handling_{int(time.time())}',
-                    'type': 'reliability',
-                    'priority': 'high',
-                    'description': 'Add comprehensive error handling with try-catch blocks and graceful degradation',
-                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
-                },
-                {
-                    'id': f'logging_system_{int(time.time())}',
-                    'type': 'monitoring',
-                    'priority': 'medium',
-                    'description': 'Implement structured logging with appropriate log levels (DEBUG, INFO, WARN, ERROR)',
-                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
-                },
-                {
-                    'id': f'monitoring_alerts_{int(time.time())}',
-                    'type': 'monitoring',
-                    'priority': 'medium',
-                    'description': 'Add monitoring and alerting for critical application errors and performance issues',
-                    'files_pattern': '**/*.{py,js,ts}'
-                }
-            ])
-
-        # Testing tasks - BUT only if not part of a specific non-testing objective
-        testing_context = any(word in objective_lower for word in ['unit test', 'integration test', 'test coverage', 'testing framework'])
-        generic_test_mention = 'test' in objective_lower and not any(phrase in objective_lower for phrase in ['test the', 'test this', 'test our'])
+        if use_opencode:
+            try:
+                print("Attempting OpenCode task generation...")
+                tasks = self.generate_tasks_with_opencode_sync(objective)
+                print(f"OpenCode generated {len(tasks)} tasks successfully")
+                return tasks
+            except Exception as e:
+                print(f"Warning: OpenCode task generation failed: {e}")
+                import traceback
+                traceback.print_exc()
         
-        if testing_context or (generic_test_mention and len(objective.split()) < 5):
-            tasks.extend([
-                {
-                    'id': f'unit_tests_{int(time.time())}',
-                    'type': 'testing',
-                    'priority': 'high',
-                    'description': 'Create comprehensive unit tests for all core functions and classes with edge case coverage',
-                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
-                },
-                {
-                    'id': f'integration_tests_{int(time.time())}',
-                    'type': 'testing',
-                    'priority': 'medium',
-                    'description': 'Build integration tests for API endpoints and database interactions',
-                    'files_pattern': 'test/**/*,tests/**/*,**/*test*'
-                },
-                {
-                    'id': f'test_coverage_{int(time.time())}',
-                    'type': 'testing',
-                    'priority': 'medium',
-                    'description': 'Set up test coverage reporting and ensure minimum 80% coverage target',
-                    'files_pattern': '**/*'
-                }
-            ])
-
-        # Performance tasks
-        if any(word in objective_lower for word in ['performance', 'optimize', 'speed', 'fast', 'cache']):
-            tasks.extend([
-                {
-                    'id': f'perf_analysis_{int(time.time())}',
-                    'type': 'performance',
-                    'priority': 'high',
-                    'description': 'Profile application performance and identify bottlenecks in hot code paths',
-                    'files_pattern': '**/*.{py,js,ts,java}'
-                },
-                {
-                    'id': f'database_optimization_{int(time.time())}',
-                    'type': 'performance',
-                    'priority': 'high',
-                    'description': 'Optimize database queries: add indexes, fix N+1 queries, implement query caching',
-                    'files_pattern': '**/*.{py,js,ts,sql}'
-                },
-                {
-                    'id': f'caching_strategy_{int(time.time())}',
-                    'type': 'performance',
-                    'priority': 'medium',
-                    'description': 'Implement intelligent caching for frequently accessed data and expensive operations',
-                    'files_pattern': '**/*.{py,js,ts}'
-                }
-            ])
-
-        # Documentation tasks
-        if any(word in objective_lower for word in ['document', 'docs', 'readme', 'api']):
-            tasks.extend([
-                {
-                    'id': f'api_docs_{int(time.time())}',
-                    'type': 'documentation',
-                    'priority': 'medium',
-                    'description': 'Generate comprehensive API documentation with request/response examples and error codes',
-                    'files_pattern': '**/*.{py,js,ts,md}'
-                },
-                {
-                    'id': f'code_comments_{int(time.time())}',
-                    'type': 'documentation',
-                    'priority': 'low',
-                    'description': 'Add clear, helpful comments to complex functions and business logic',
-                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
-                },
-                {
-                    'id': f'readme_update_{int(time.time())}',
-                    'type': 'documentation',
-                    'priority': 'low',
-                    'description': 'Update README with current installation, usage, and contribution guidelines',
-                    'files_pattern': 'README.md,docs/**/*'
-                }
-            ])
-
-        # Code quality and refactoring
-        if any(word in objective_lower for word in ['quality', 'refactor', 'clean', 'improve', 'standard']):
-            tasks.extend([
-                {
-                    'id': f'code_standards_{int(time.time())}',
-                    'type': 'quality',
-                    'priority': 'medium',
-                    'description': 'Apply consistent code formatting, naming conventions, and style guidelines',
-                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
-                },
-                {
-                    'id': f'linting_setup_{int(time.time())}',
-                    'type': 'quality',
-                    'priority': 'medium',
-                    'description': 'Set up and configure linting tools (ESLint, PyLint, etc.) with team standards',
-                    'files_pattern': '**/*'
-                },
-                {
-                    'id': f'code_duplication_{int(time.time())}',
-                    'type': 'refactoring',
-                    'priority': 'low',
-                    'description': 'Identify and eliminate code duplication by extracting reusable functions/components',
-                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
-                }
-            ])
-
-        # Feature development tasks
-        if any(word in objective_lower for word in ['add', 'implement', 'create', 'build', 'feature']):
-            # Extract feature name from objective
-            feature_desc = objective.replace('add ', '').replace('implement ', '').replace('create ', '')
-            tasks.extend([
-                {
-                    'id': f'feature_impl_{int(time.time())}',
-                    'type': 'feature',
-                    'priority': 'high',
-                    'description': f'Implement core functionality for: {feature_desc}',
-                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
-                },
-                {
-                    'id': f'feature_tests_{int(time.time())}',
-                    'type': 'testing',
-                    'priority': 'high',
-                    'description': f'Create comprehensive tests for the new feature: {feature_desc}',
-                    'files_pattern': 'test/**/*,tests/**/*'
-                }
-            ])
-
-        # Default fallback - but make it more specific
-        if not tasks:
-            # Try to extract more context from the objective
-            if len(objective.split()) > 3:
-                tasks = [
-                    {
-                        'id': f'objective_analysis_{int(time.time())}',
-                        'type': 'analysis',
-                        'priority': 'medium',
-                        'description': f'Analyze codebase and implement: {objective}',
-                        'files_pattern': '**/*.{py,js,ts,java,rb,php,md}'
-                    }
-                ]
-            else:
-                tasks = [
-                    {
-                        'id': f'general_improvement_{int(time.time())}',
-                        'type': 'improvement',
-                        'priority': 'medium',
-                        'description': f'General codebase improvement focusing on: {objective}',
-                        'files_pattern': '**/*'
-                    }
-                ]
-
-        return tasks
+        # Fallback to simple task creation
+        print("Falling back to simple task generation")
+        return self.generate_simple_tasks(objective)
 
     def generate_tasks_with_opencode(self, objective: str) -> List[Dict]:
         """
@@ -505,6 +263,124 @@ Focus on creating tasks that directly address the stated objective, not generic 
 
         print(f"Started agent for task {task['id']} (PID: {process.pid})")
         return process
+
+    def generate_tasks_with_opencode_sync(self, objective: str) -> List[Dict]:
+        """
+        Use OpenCode synchronously to generate intelligent tasks.
+        Uses the same mechanism as run_opencode_agent but waits for response.
+        """
+        project_info = self.detect_project_type()
+        
+        # Create a prompt for OpenCode to analyze and generate tasks
+        prompt = f"""
+Analyze this development objective and break it down into 3-5 specific, actionable tasks:
+
+OBJECTIVE: {objective}
+
+PROJECT CONTEXT:
+- Languages: {', '.join(project_info['languages']) if project_info['languages'] else 'Unknown'}
+- Frameworks: {', '.join(project_info['frameworks']) if project_info['frameworks'] else 'Unknown'}  
+- Has tests: {project_info['has_tests']}
+- Project directory: {self.project_dir}
+
+For each task, provide:
+1. A task type (choose from: feature, testing, security, performance, documentation, frontend, backend)
+2. Priority (high, medium, low) 
+3. A specific description of what to implement
+4. File patterns to focus on (like *.html, *.js, *.py, etc.)
+
+Please respond with EXACTLY this format for each task:
+TASK: [type] | [priority] | [description] | [file_pattern]
+
+Example:
+TASK: frontend | high | Complete the agent status dashboard with real-time updates | *.html,*.js,*.css
+TASK: testing | medium | Add unit tests for dashboard functionality | *test*.js
+
+Focus on the specific objective, not generic improvements.
+"""
+
+        try:
+            print("Calling OpenCode for task generation...")
+            # Run OpenCode and wait for response (same as agents but synchronous)
+            result = subprocess.run(
+                ['opencode', 'run', prompt],
+                capture_output=True,
+                text=True,
+                timeout=60,  # Increase timeout for task generation
+                cwd=str(self.project_dir)
+            )
+
+            print(f"OpenCode returned with code: {result.returncode}")
+            
+            if result.returncode == 0 and result.stdout:
+                print("OpenCode response received, parsing tasks...")
+                # Parse the structured response
+                tasks = []
+                lines = result.stdout.strip().split('\n')
+                timestamp = int(time.time())
+                
+                print(f"Analyzing {len(lines)} lines from OpenCode response")
+                
+                for i, line in enumerate(lines):
+                    if line.strip().startswith('TASK:'):
+                        print(f"Found task line {i}: {line}")
+                        try:
+                            # Parse: TASK: type | priority | description | file_pattern
+                            parts = line.replace('TASK:', '').strip().split(' | ')
+                            if len(parts) >= 4:
+                                task_type = parts[0].strip()
+                                priority = parts[1].strip()
+                                description = parts[2].strip()
+                                files_pattern = parts[3].strip()
+                                
+                                task = {
+                                    'id': f'{task_type}_{timestamp}_{len(tasks)}',
+                                    'type': task_type,
+                                    'priority': priority,
+                                    'description': description,
+                                    'files_pattern': files_pattern
+                                }
+                                tasks.append(task)
+                                print(f"  Created task: {task['id']}")
+                            else:
+                                print(f"  Warning: Task line has {len(parts)} parts, expected 4+")
+                        except Exception as parse_error:
+                            print(f"  Warning: Could not parse task line: {parse_error}")
+                            continue
+
+                if tasks:
+                    print(f"Successfully generated {len(tasks)} tasks using OpenCode analysis")
+                    return tasks
+                else:
+                    print("Warning: No valid tasks found in OpenCode response")
+                    print("Raw response:")
+                    print(result.stdout)
+                    
+            else:
+                print(f"Warning: OpenCode task generation failed (exit {result.returncode})")
+                if result.stderr:
+                    print(f"Error output: {result.stderr}")
+                    
+        except subprocess.TimeoutExpired:
+            print("Warning: OpenCode task generation timed out after 60 seconds")
+        except Exception as e:
+            print(f"Warning: OpenCode task generation error: {e}")
+
+        # Fallback to simple task creation
+        return self.generate_simple_tasks(objective)
+
+    def generate_simple_tasks(self, objective: str) -> List[Dict]:
+        """Generate simple tasks when OpenCode analysis isn't available"""
+        timestamp = int(time.time())
+        
+        # Create one main task that directly addresses the objective
+        return [{
+            'id': f'main_objective_{timestamp}',
+            'type': 'feature',
+            'priority': 'high', 
+            'description': f'Implement: {objective}',
+            'files_pattern': '**/*'
+        }]
 
     def delegate(self, objective: str, max_concurrent: int = 4) -> None:
         """Main delegation function"""

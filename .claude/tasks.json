@@ -1,20 +1,34 @@
 {
-  "created_at": "2025-09-26T03:29:00.100771",
-  "total_tasks": 2,
+  "created_at": "2025-09-26T03:40:33.072762",
+  "total_tasks": 4,
   "tasks": [
     {
-      "id": "feature_impl_1758878940",
-      "type": "feature",
+      "id": "backend_1758879633_0",
+      "type": "backend",
       "priority": "high",
-      "description": "Implement core functionality for: continue building the front end agent task viewer: we started at monitor-dashboard.html",
-      "files_pattern": "**/*.{py,js,ts,java,rb,php}"
+      "description": "Create a basic Express.js server with hello world endpoint at GET /hello",
+      "files_pattern": "*.js"
     },
     {
-      "id": "feature_tests_1758878940",
-      "type": "testing",
+      "id": "backend_1758879633_1",
+      "type": "backend",
       "priority": "high",
-      "description": "Create comprehensive tests for the new feature: continue building the front end agent task viewer: we started at monitor-dashboard.html",
-      "files_pattern": "test/**/*,tests/**/*"
+      "description": "Add Express.js dependency and update package.json scripts to start the server",
+      "files_pattern": "package.json,*.js"
+    },
+    {
+      "id": "testing_1758879633_2",
+      "type": "testing",
+      "priority": "medium",
+      "description": "Create unit tests for the hello world endpoint using Jest",
+      "files_pattern": "*test*.js,*spec*.js"
+    },
+    {
+      "id": "documentation_1758879633_3",
+      "type": "documentation",
+      "priority": "low",
+      "description": "Update README.md to document the new API endpoint and how to start the server",
+      "files_pattern": "README.md"
     }
   ]
 }
