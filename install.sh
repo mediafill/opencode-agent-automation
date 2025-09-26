@@ -1,6 +1,6 @@
 #!/bin/bash
 # OpenCode Agent Automation Installer
-# One-line install: curl -fsSL https://raw.githubusercontent.com/yourusername/opencode-agent-automation/main/install.sh | bash
+# One-line install: curl -fsSL https://raw.githubusercontent.com/mediafill/opencode-agent-automation/main/install.sh | bash
 
 set -e
 
@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-REPO_URL="https://github.com/yourusername/opencode-agent-automation"
+REPO_URL="https://github.com/mediafill/opencode-agent-automation"
 INSTALL_DIR="${HOME}/.opencode-agents"
 PROJECT_DIR="${PWD}"
 CLAUDE_DIR="${PROJECT_DIR}/.claude"
@@ -281,7 +281,7 @@ main() {
     echo "  2. Check status:  .claude/launch.sh status"
     echo "  3. View logs:     .claude/launch.sh logs"
     echo ""
-    echo -e "${BLUE}Documentation:${NC} https://github.com/yourusername/opencode-agent-automation${NC}"
+    echo -e "${BLUE}Documentation:${NC} https://github.com/mediafill/opencode-agent-automation${NC}"
     echo ""
 }
 

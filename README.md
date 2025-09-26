@@ -18,7 +18,7 @@ Transform your development workflow with intelligent AI agents that work autonom
 ### One-line install (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/opencode-agent-automation/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mediafill/opencode-agent-automation/main/install.sh | bash
 ```
 
 ### NPM install
@@ -30,7 +30,7 @@ npm install -g opencode-agent-automation
 ### Manual install
 
 ```bash
-git clone https://github.com/yourusername/opencode-agent-automation
+git clone https://github.com/mediafill/opencode-agent-automation
 cd opencode-agent-automation
 bash install.sh
 ```
@@ -73,7 +73,7 @@ agents delegate "make the application production ready"
 1. Navigate to your project directory
 2. Run the installer:
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/yourusername/opencode-agent-automation/main/install.sh | bash
+   curl -fsSL https://raw.githubusercontent.com/mediafill/opencode-agent-automation/main/install.sh | bash
    ```
 3. The installer will create a `.claude` directory with all necessary files
 
@@ -240,9 +240,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/opencode-agent-automation/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/opencode-agent-automation/discussions)
-- **Documentation**: [Wiki](https://github.com/yourusername/opencode-agent-automation/wiki)
+- **Issues**: [GitHub Issues](https://github.com/mediafill/opencode-agent-automation/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/mediafill/opencode-agent-automation/discussions)
+- **Documentation**: [Wiki](https://github.com/mediafill/opencode-agent-automation/wiki)
 
 ## Acknowledgments
 

@@ -22,7 +22,7 @@ fi
 mkdir -p .claude/{logs,tasks,agents}
 
 # Download core files
-BASE_URL="https://raw.githubusercontent.com/yourusername/opencode-agent-automation/main"
+BASE_URL="https://raw.githubusercontent.com/mediafill/opencode-agent-automation/main"
 
 echo "📥 Downloading automation scripts..."
 
