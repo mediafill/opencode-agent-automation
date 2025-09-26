@@ -1,0 +1,42 @@
+{
+  "name": "opencode-agent-automation",
+  "version": "1.0.0",
+  "description": "Automated OpenCode AI agent delegation system for Claude and OpenCode integration",
+  "main": "index.js",
+  "bin": {
+    "opencode-agents": "./bin/opencode-agents.js"
+  },
+  "scripts": {
+    "install": "node scripts/install.js",
+    "test": "node scripts/test.js",
+    "setup": "bash install.sh"
+  },
+  "keywords": [
+    "opencode",
+    "claude",
+    "ai",
+    "automation",
+    "agent",
+    "delegation",
+    "development",
+    "assistant"
+  ],
+  "author": "OpenCode Agent Automation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/opencode-agent-automation.git"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {},
+  "files": [
+    "bin/",
+    "scripts/",
+    "templates/",
+    "install.sh",
+    "README.md",
+    "LICENSE"
+  ]
+}
