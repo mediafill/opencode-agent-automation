@@ -22,6 +22,42 @@ This document provides Claude with comprehensive guidance on using the OpenCode 
 4. **Quality Assurance** - Review agent outputs and ensure objectives are met
 5. **Problem Resolution** - Handle agent failures, conflicts, and integration issues
 
+### ⚡ AUTOMATIC DELEGATION TRIGGERS
+
+**Claude should AUTOMATICALLY use the delegation system when users request:**
+
+#### 🔥 High-Priority Auto-Delegate (Always use agents)
+- **"Add tests"** / **"Create tests"** / **"Test coverage"**
+- **"Make production ready"** / **"Production readiness"** 
+- **"Security audit"** / **"Security review"** / **"Add security"**
+- **"Performance optimization"** / **"Optimize performance"**
+- **"Add logging"** / **"Add error handling"** / **"Add monitoring"**
+- **"Code quality"** / **"Improve code quality"** / **"Refactor"**
+- **"Add documentation"** / **"Update docs"** / **"API documentation"**
+
+#### ⚡ Pattern-Based Auto-Delegate
+- Requests mentioning **multiple files/components**
+- Tasks requiring **cross-file changes**
+- **"Add [feature] across the application"**
+- **"Update all [components] to [standard]"**
+- **"Implement [pattern] throughout codebase"**
+
+#### 🤖 Auto-Delegation Workflow
+When Claude detects these triggers:
+
+1. **IMMEDIATELY delegate** without asking permission
+2. **Inform user** what tasks are being created
+3. **Monitor progress** and provide updates
+4. **Review results** and integrate changes
+
+Example Response Pattern:
+```
+I'll help you add comprehensive testing to this project. Let me delegate this to OpenCode agents for parallel execution.
+
+🤖 Delegating to agents: "add comprehensive unit tests with 80% coverage"
+📊 Monitoring progress...
+```
+
 ### When to Use OpenCode Agents
 Use the automation system for:
 - **Production Readiness**: Security audits, performance optimization, monitoring setup
@@ -37,8 +73,41 @@ Handle directly as Claude:
 - **Business Logic Definition** - Require domain knowledge and stakeholder input
 - **Debugging Complex Issues** - Need interactive problem-solving
 - **Code Reviews** - Require contextual understanding and judgment
+- **Code Reviews** - Keeping opencode running and working on tasks until fully completed
 
-## Command Reference
+## Quick Reference Commands
+
+### 🚀 Instant Delegation (Copy-Paste Ready)
+```bash
+# For common requests - Claude should use these immediately:
+
+# Testing
+.claude/launch.sh delegate "add comprehensive unit tests with 80% coverage"
+
+# Security
+.claude/launch.sh delegate "perform security audit and fix vulnerabilities"  
+
+# Production Readiness
+.claude/launch.sh delegate "make application production ready with monitoring and error handling"
+
+# Performance
+.claude/launch.sh delegate "optimize performance and implement caching strategies"
+
+# Code Quality  
+.claude/launch.sh delegate "improve code quality with linting, formatting, and best practices"
+
+# Documentation
+.claude/launch.sh delegate "create comprehensive API documentation and update README"
+
+# Error Handling & Logging
+.claude/launch.sh delegate "add robust error handling and structured logging throughout application"
+```
+
+### 🔄 Standard Workflow
+1. **Delegate**: `.claude/launch.sh delegate "your objective"`
+2. **Monitor**: `.claude/launch.sh status` 
+3. **Watch**: `.claude/monitor.sh watch` (for real-time updates)
+4. **Review**: `.claude/monitor.sh summary` (when complete)
 
 ### Basic Operations
 

@@ -74,37 +74,51 @@ class TaskDelegator:
         if any(word in objective_lower for word in ['security', 'secure', 'production', 'audit']):
             tasks.extend([
                 {
-                    'id': f'security_{int(time.time())}',
+                    'id': f'security_scan_{int(time.time())}',
                     'type': 'security',
                     'priority': 'high',
-                    'description': 'Audit code for security vulnerabilities: SQL injection, XSS, CSRF, authentication issues',
-                    'files_pattern': '**/*.{py,js,php,rb}'
+                    'description': 'Scan for common security vulnerabilities: SQL injection, XSS, CSRF, insecure dependencies',
+                    'files_pattern': '**/*.{py,js,php,rb,ts,java}'
                 },
                 {
-                    'id': f'deps_{int(time.time())}',
+                    'id': f'auth_review_{int(time.time())}',
                     'type': 'security',
                     'priority': 'high',
-                    'description': 'Check and update dependencies for known vulnerabilities',
-                    'files_pattern': 'requirements.txt,package.json,Gemfile'
+                    'description': 'Review and strengthen authentication and authorization mechanisms',
+                    'files_pattern': '**/auth/**/*,**/login/**/*,**/security/**/*'
+                },
+                {
+                    'id': f'input_validation_{int(time.time())}',
+                    'type': 'security',
+                    'priority': 'high',
+                    'description': 'Add comprehensive input validation and sanitization for all user inputs',
+                    'files_pattern': '**/*.{py,js,php,rb,ts}'
                 }
             ])
 
-        # Performance tasks
-        if any(word in objective_lower for word in ['performance', 'optimize', 'speed', 'fast']):
+        # Error handling and logging tasks
+        if any(word in objective_lower for word in ['error', 'logging', 'log', 'exception', 'handling']):
             tasks.extend([
                 {
-                    'id': f'perf_{int(time.time())}',
-                    'type': 'performance',
-                    'priority': 'medium',
-                    'description': 'Analyze and optimize performance bottlenecks, database queries, and API endpoints',
-                    'files_pattern': '**/*.{py,js}'
+                    'id': f'error_handling_{int(time.time())}',
+                    'type': 'reliability',
+                    'priority': 'high',
+                    'description': 'Add comprehensive error handling with try-catch blocks and graceful degradation',
+                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
                 },
                 {
-                    'id': f'cache_{int(time.time())}',
-                    'type': 'performance',
+                    'id': f'logging_system_{int(time.time())}',
+                    'type': 'monitoring',
                     'priority': 'medium',
-                    'description': 'Implement caching strategies for frequently accessed data',
-                    'files_pattern': '**/*.{py,js}'
+                    'description': 'Implement structured logging with appropriate log levels (DEBUG, INFO, WARN, ERROR)',
+                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
+                },
+                {
+                    'id': f'monitoring_alerts_{int(time.time())}',
+                    'type': 'monitoring',
+                    'priority': 'medium',
+                    'description': 'Add monitoring and alerting for critical application errors and performance issues',
+                    'files_pattern': '**/*.{py,js,ts}'
                 }
             ])
 
@@ -112,18 +126,51 @@ class TaskDelegator:
         if any(word in objective_lower for word in ['test', 'testing', 'coverage', 'quality']):
             tasks.extend([
                 {
-                    'id': f'test_{int(time.time())}',
+                    'id': f'unit_tests_{int(time.time())}',
                     'type': 'testing',
                     'priority': 'high',
-                    'description': 'Write comprehensive unit tests for critical functions',
-                    'files_pattern': '**/*.{py,js}'
+                    'description': 'Create comprehensive unit tests for all core functions and classes with edge case coverage',
+                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
                 },
                 {
-                    'id': f'integration_{int(time.time())}',
+                    'id': f'integration_tests_{int(time.time())}',
                     'type': 'testing',
                     'priority': 'medium',
-                    'description': 'Create integration tests for API endpoints',
-                    'files_pattern': 'test/**/*'
+                    'description': 'Build integration tests for API endpoints and database interactions',
+                    'files_pattern': 'test/**/*,tests/**/*,**/*test*'
+                },
+                {
+                    'id': f'test_coverage_{int(time.time())}',
+                    'type': 'testing',
+                    'priority': 'medium',
+                    'description': 'Set up test coverage reporting and ensure minimum 80% coverage target',
+                    'files_pattern': '**/*'
+                }
+            ])
+
+        # Performance tasks
+        if any(word in objective_lower for word in ['performance', 'optimize', 'speed', 'fast', 'cache']):
+            tasks.extend([
+                {
+                    'id': f'perf_analysis_{int(time.time())}',
+                    'type': 'performance',
+                    'priority': 'high',
+                    'description': 'Profile application performance and identify bottlenecks in hot code paths',
+                    'files_pattern': '**/*.{py,js,ts,java}'
+                },
+                {
+                    'id': f'database_optimization_{int(time.time())}',
+                    'type': 'performance',
+                    'priority': 'high',
+                    'description': 'Optimize database queries: add indexes, fix N+1 queries, implement query caching',
+                    'files_pattern': '**/*.{py,js,ts,sql}'
+                },
+                {
+                    'id': f'caching_strategy_{int(time.time())}',
+                    'type': 'performance',
+                    'priority': 'medium',
+                    'description': 'Implement intelligent caching for frequently accessed data and expensive operations',
+                    'files_pattern': '**/*.{py,js,ts}'
                 }
             ])
 
@@ -131,32 +178,98 @@ class TaskDelegator:
         if any(word in objective_lower for word in ['document', 'docs', 'readme', 'api']):
             tasks.extend([
                 {
-                    'id': f'docs_{int(time.time())}',
+                    'id': f'api_docs_{int(time.time())}',
                     'type': 'documentation',
-                    'priority': 'low',
-                    'description': 'Create comprehensive API documentation with examples',
-                    'files_pattern': '**/*.{py,js,md}'
+                    'priority': 'medium',
+                    'description': 'Generate comprehensive API documentation with request/response examples and error codes',
+                    'files_pattern': '**/*.{py,js,ts,md}'
                 },
                 {
-                    'id': f'readme_{int(time.time())}',
+                    'id': f'code_comments_{int(time.time())}',
                     'type': 'documentation',
                     'priority': 'low',
-                    'description': 'Update README with installation, usage, and contribution guidelines',
-                    'files_pattern': 'README.md'
+                    'description': 'Add clear, helpful comments to complex functions and business logic',
+                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
+                },
+                {
+                    'id': f'readme_update_{int(time.time())}',
+                    'type': 'documentation',
+                    'priority': 'low',
+                    'description': 'Update README with current installation, usage, and contribution guidelines',
+                    'files_pattern': 'README.md,docs/**/*'
                 }
             ])
 
-        # Default tasks if no specific keywords found
-        if not tasks:
-            tasks = [
+        # Code quality and refactoring
+        if any(word in objective_lower for word in ['quality', 'refactor', 'clean', 'improve', 'standard']):
+            tasks.extend([
                 {
-                    'id': f'analyze_{int(time.time())}',
-                    'type': 'analysis',
+                    'id': f'code_standards_{int(time.time())}',
+                    'type': 'quality',
                     'priority': 'medium',
-                    'description': f'Analyze project and {objective}',
+                    'description': 'Apply consistent code formatting, naming conventions, and style guidelines',
+                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
+                },
+                {
+                    'id': f'linting_setup_{int(time.time())}',
+                    'type': 'quality',
+                    'priority': 'medium',
+                    'description': 'Set up and configure linting tools (ESLint, PyLint, etc.) with team standards',
                     'files_pattern': '**/*'
+                },
+                {
+                    'id': f'code_duplication_{int(time.time())}',
+                    'type': 'refactoring',
+                    'priority': 'low',
+                    'description': 'Identify and eliminate code duplication by extracting reusable functions/components',
+                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
                 }
-            ]
+            ])
+
+        # Feature development tasks
+        if any(word in objective_lower for word in ['add', 'implement', 'create', 'build', 'feature']):
+            # Extract feature name from objective
+            feature_desc = objective.replace('add ', '').replace('implement ', '').replace('create ', '')
+            tasks.extend([
+                {
+                    'id': f'feature_impl_{int(time.time())}',
+                    'type': 'feature',
+                    'priority': 'high',
+                    'description': f'Implement core functionality for: {feature_desc}',
+                    'files_pattern': '**/*.{py,js,ts,java,rb,php}'
+                },
+                {
+                    'id': f'feature_tests_{int(time.time())}',
+                    'type': 'testing',
+                    'priority': 'high',
+                    'description': f'Create comprehensive tests for the new feature: {feature_desc}',
+                    'files_pattern': 'test/**/*,tests/**/*'
+                }
+            ])
+
+        # Default fallback - but make it more specific
+        if not tasks:
+            # Try to extract more context from the objective
+            if len(objective.split()) > 3:
+                tasks = [
+                    {
+                        'id': f'objective_analysis_{int(time.time())}',
+                        'type': 'analysis',
+                        'priority': 'medium',
+                        'description': f'Analyze codebase and implement: {objective}',
+                        'files_pattern': '**/*.{py,js,ts,java,rb,php,md}'
+                    }
+                ]
+            else:
+                tasks = [
+                    {
+                        'id': f'general_improvement_{int(time.time())}',
+                        'type': 'improvement',
+                        'priority': 'medium',
+                        'description': f'General codebase improvement focusing on: {objective}',
+                        'files_pattern': '**/*'
+                    }
+                ]
 
         return tasks
 

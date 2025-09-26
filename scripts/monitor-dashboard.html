@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode Agent Monitoring Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #4CAF50;
+            --error-color: #f44336;
+            --warning-color: #FFC107;
+            --info-color: #2196F3;
+            --dark-bg: #1a1a1a;
+            --dark-card: #2d2d2d;
+            --dark-text: #e0e0e0;
+            --light-bg: #f5f7fa;
+            --light-card: #ffffff;
+            --light-text: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            transition: all 0.3s ease;
+            min-height: 100vh;
+        }
+
+        /* Light Theme */
+        body.light {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: var(--light-text);
+        }
+
+        /* Dark Theme */
+        body.dark {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: var(--dark-text);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 300;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            margin-bottom: 10px;
+        }
+
+        .header-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .theme-toggle, .refresh-btn, .export-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .theme-toggle:hover, .refresh-btn:hover, .export-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .connection-dot.connected { background: var(--success-color); }
+        .connection-dot.disconnected { background: var(--error-color); }
+        .connection-dot.connecting { background: var(--warning-color); }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+        }
+
+        body.light .card {
+            background: rgba(255,255,255,0.9);
+            color: var(--light-text);
+        }
+
+        body.dark .card {
+            background: rgba(45,45,45,0.9);
+            color: var(--dark-text);
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .agent-card {
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .agent-card:hover {
+            transform: scale(1.02);
+        }
+
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .agent-id {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .agent-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-running { background: rgba(76,175,80,0.2); color: var(--success-color); }
+        .status-completed { background: rgba(33,150,243,0.2); color: var(--info-color); }
+        .status-error { background: rgba(244,67,54,0.2); color: var(--error-color); }
+        .status-pending { background: rgba(255,193,7,0.2); color: var(--warning-color); }
+        .status-blocked { background: rgba(156,39,176,0.2); color: #9c27b0; }
+
+        .agent-task {
+            margin: 12px 0;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 4px;
+            opacity: 0.7;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--primary-color);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        .logs-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.05);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .log-entry {
+            padding: 8px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: var(--primary-color);
+            margin-right: 12px;
+        }
+
+        .log-level-error { color: var(--error-color); }
+        .log-level-warn { color: var(--warning-color); }
+        .log-level-info { color: var(--info-color); }
+        .log-level-debug { opacity: 0.7; }
+
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .filter-input, .filter-select {
+            padding: 8px 12px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: inherit;
+            font-size: 14px;
+        }
+
+        .filter-input::placeholder {
+            color: rgba(0,0,0,0.5);
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--primary-color);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 24px;
+            padding-left: 20px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -27px;
+            top: 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--primary-color);
+        }
+
+        .timeline-time {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        .timeline-content {
+            font-size: 14px;
+        }
+
+        .activity-heatmap {
+            display: grid;
+            grid-template-columns: repeat(24, 1fr);
+            gap: 2px;
+            margin-top: 16px;
+        }
+
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 2px;
+            background: rgba(0,0,0,0.1);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .heatmap-cell.active-1 { background: rgba(102,126,234,0.3); }
+        .heatmap-cell.active-2 { background: rgba(102,126,234,0.5); }
+        .heatmap-cell.active-3 { background: rgba(102,126,234,0.7); }
+        .heatmap-cell.active-4 { background: rgba(102,126,234,0.9); }
+        .heatmap-cell.active-5 { background: rgba(102,126,234,1); }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--light-card);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 20px;
+        }
+
+        body.dark .modal-content {
+            background: var(--dark-card);
+            color: var(--dark-text);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .modal-close:hover {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            .header-controls {
+                gap: 10px;
+            }
+
+            .filters {
+                flex-direction: column;
+            }
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+            opacity: 0.7;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(102,126,234,0.3);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: rgba(244,67,54,0.1);
+            color: var(--error-color);
+            padding: 12px;
+            border-radius: 6px;
+            margin: 12px 0;
+            border-left: 4px solid var(--error-color);
+        }
+
+        .success-message {
+            background: rgba(76,175,80,0.1);
+            color: var(--success-color);
+            padding: 12px;
+            border-radius: 6px;
+            margin: 12px 0;
+            border-left: 4px solid var(--success-color);
+        }
+    </style>
+</head>
+<body class="light">
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🤖 OpenCode Agent Dashboard</h1>
+            <div class="header-controls">
+                <div class="status-indicator">
+                    <div class="connection-dot disconnected" id="connectionStatus"></div>
+                    <span id="connectionText">Disconnected</span>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()">🌓 Toggle Theme</button>
+                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
+                <button class="export-btn" onclick="exportLogs()">📥 Export Logs</button>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div class="dashboard-grid">
+            <!-- Agent Status Overview -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📊 Agent Status Overview</h2>
+                </div>
+                <div id="agentStatusOverview">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+
+            <!-- Task Queue -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📋 Task Queue</h2>
+                    <div class="card-actions">
+                        <button class="action-btn" onclick="showTaskDetails()">Details</button>
+                    </div>
+                </div>
+                <div id="taskQueue">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+
+            <!-- System Resources -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">💻 System Resources</h2>
+                </div>
+                <div id="systemResources">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="resourceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Task Distribution -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📈 Task Distribution</h2>
+                </div>
+                <div class="chart-container">
+                    <canvas id="taskDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Agents Grid -->
+        <div class="card" style="margin-bottom: 30px;">
+            <div class="card-header">
+                <h2 class="card-title">🤖 Active Agents</h2>
+                <div class="filters">
+                    <select class="filter-select" id="statusFilter" onchange="filterAgents()">
+                        <option value="">All Status</option>
+                        <option value="running">Running</option>
+                        <option value="completed">Completed</option>
+                        <option value="error">Error</option>
+                        <option value="pending">Pending</option>
+                        <option value="blocked">Blocked</option>
+                    </select>
+                    <select class="filter-select" id="typeFilter" onchange="filterAgents()">
+                        <option value="">All Types</option>
+                        <option value="security">Security</option>
+                        <option value="testing">Testing</option>
+                        <option value="performance">Performance</option>
+                        <option value="documentation">Documentation</option>
+                        <option value="refactoring">Refactoring</option>
+                    </select>
+                    <input type="text" class="filter-input" id="searchFilter" placeholder="Search agents..." onkeyup="filterAgents()">
+                </div>
+            </div>
+            <div id="activeAgents" class="dashboard-grid">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
+
+        <!-- Timeline and Logs -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+            <!-- Timeline -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">⏱️ Timeline</h2>
+                </div>
+                <div id="timeline" class="timeline">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+
+            <!-- Activity Heatmap -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔥 Activity Heatmap (24h)</h2>
+                </div>
+                <div id="activityHeatmap" class="activity-heatmap">
+                    <!-- Generated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Viewer -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">📜 Live Logs</h2>
+                <div class="card-actions">
+                    <button class="action-btn" onclick="clearLogs()">Clear</button>
+                    <button class="action-btn" onclick="toggleLogAutoScroll()">Auto-scroll: ON</button>
+                </div>
+            </div>
+            <div class="filters">
+                <select class="filter-select" id="logLevelFilter" onchange="filterLogs()">
+                    <option value="">All Levels</option>
+                    <option value="error">Error</option>
+                    <option value="warn">Warning</option>
+                    <option value="info">Info</option>
+                    <option value="debug">Debug</option>
+                </select>
+                <input type="text" class="filter-input" id="logSearchFilter" placeholder="Search logs..." onkeyup="filterLogs()">
+            </div>
+            <div id="logsContainer" class="logs-container">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for detailed views -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Details</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let websocket = null;
+        let reconnectInterval = null;
+        let agents = [];
+        let tasks = [];
+        let logs = [];
+        let resourceData = [];
+        let currentTheme = 'light';
+        let autoScrollLogs = true;
+        let charts = {};
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            initializeWebSocket();
+            loadDemoData();
+            generateActivityHeatmap();
+            setInterval(updateResourceChart, 5000);
+            setInterval(refreshData, 10000); // Auto-refresh every 10 seconds
+        });
+
+        // WebSocket connection
+        function initializeWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//localhost:8080/ws`;
+
+            try {
+                websocket = new WebSocket(wsUrl);
+
+                websocket.onopen = function() {
+                    updateConnectionStatus('connected', 'Connected');
+                    console.log('WebSocket connected');
+                };
+
+                websocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (error) {
+                        console.error('Error parsing WebSocket message:', error);
+                    }
+                };
+
+                websocket.onclose = function() {
+                    updateConnectionStatus('disconnected', 'Disconnected');
+                    console.log('WebSocket disconnected');
+
+                    // Attempt to reconnect
+                    if (!reconnectInterval) {
+                        reconnectInterval = setInterval(() => {
+                            updateConnectionStatus('connecting', 'Reconnecting...');
+                            initializeWebSocket();
+                        }, 5000);
+                    }
+                };
+
+                websocket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    updateConnectionStatus('disconnected', 'Connection Error');
+                };
+
+            } catch (error) {
+                console.error('Failed to create WebSocket connection:', error);
+                updateConnectionStatus('disconnected', 'Failed to Connect');
+                loadDemoData(); // Fall back to demo data
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'agent_update':
+                    updateAgent(data.agent);
+                    break;
+                case 'task_update':
+                    updateTask(data.task);
+                    break;
+                case 'log_entry':
+                    addLogEntry(data.log);
+                    break;
+                case 'resource_update':
+                    updateResourceData(data.resources);
+                    break;
+                case 'full_status':
+                    agents = data.agents || [];
+                    tasks = data.tasks || [];
+                    updateAllDisplays();
+                    break;
+            }
+        }
+
+        function updateConnectionStatus(status, text) {
+            const dot = document.getElementById('connectionStatus');
+            const textEl = document.getElementById('connectionText');
+
+            dot.className = `connection-dot ${status}`;
+            textEl.textContent = text;
+
+            if (status === 'connected' && reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+        }
+
+        // Demo data for fallback
+        function loadDemoData() {
+            agents = [
+                {
+                    id: 'security_' + Date.now(),
+                    type: 'security',
+                    status: 'running',
+                    task: 'Performing security audit on authentication module',
+                    progress: 65,
+                    startTime: new Date(Date.now() - 300000),
+                    priority: 'high'
+                },
+                {
+                    id: 'testing_' + (Date.now() + 1),
+                    type: 'testing',
+                    status: 'completed',
+                    task: 'Added unit tests for user service',
+                    progress: 100,
+                    startTime: new Date(Date.now() - 600000),
+                    endTime: new Date(Date.now() - 60000),
+                    priority: 'medium'
+                },
+                {
+                    id: 'perf_' + (Date.now() + 2),
+                    type: 'performance',
+                    status: 'pending',
+                    task: 'Database query optimization',
+                    progress: 0,
+                    priority: 'high'
+                },
+                {
+                    id: 'docs_' + (Date.now() + 3),
+                    type: 'documentation',
+                    status: 'error',
+                    task: 'API documentation generation',
+                    progress: 25,
+                    startTime: new Date(Date.now() - 180000),
+                    error: 'Failed to parse OpenAPI specification',
+                    priority: 'low'
+                }
+            ];
+
+            tasks = [
+                { id: '1', type: 'security', status: 'in_progress', priority: 'high', description: 'Security audit' },
+                { id: '2', type: 'testing', status: 'completed', priority: 'medium', description: 'Unit tests' },
+                { id: '3', type: 'performance', status: 'pending', priority: 'high', description: 'Performance optimization' },
+                { id: '4', type: 'documentation', status: 'blocked', priority: 'low', description: 'Documentation update' }
+            ];
+
+            // Generate demo logs
+            logs = [
+                { time: new Date(), level: 'info', message: 'Security agent started', agent: 'security_agent' },
+                { time: new Date(Date.now() - 30000), level: 'warn', message: 'Potential SQL injection vulnerability found', agent: 'security_agent' },
+                { time: new Date(Date.now() - 60000), level: 'info', message: 'Testing agent completed successfully', agent: 'testing_agent' },
+                { time: new Date(Date.now() - 90000), level: 'error', message: 'Documentation agent failed to parse OpenAPI spec', agent: 'docs_agent' },
+                { time: new Date(Date.now() - 120000), level: 'info', message: 'Performance agent queued', agent: 'perf_agent' }
+            ];
+
+            updateAllDisplays();
+        }
+
+        // Update all display components
+        function updateAllDisplays() {
+            updateAgentStatusOverview();
+            updateTaskQueue();
+            updateSystemResources();
+            updateActiveAgents();
+            updateTimeline();
+            updateLogs();
+            updateTaskDistributionChart();
+        }
+
+        // Agent status overview
+        function updateAgentStatusOverview() {
+            const statusCounts = agents.reduce((acc, agent) => {
+                acc[agent.status] = (acc[agent.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            const totalAgents = agents.length;
+            const completedTasks = agents.filter(a => a.status === 'completed').length;
+            const completionRate = totalAgents > 0 ? Math.round((completedTasks / totalAgents) * 100) : 0;
+
+            document.getElementById('agentStatusOverview').innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Total Agents</span>
+                    <span class="metric-value">${totalAgents}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Running</span>
+                    <span class="metric-value">${statusCounts.running || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Completed</span>
+                    <span class="metric-value">${statusCounts.completed || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Errors</span>
+                    <span class="metric-value">${statusCounts.error || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Pending</span>
+                    <span class="metric-value">${statusCounts.pending || 0}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${completionRate}%"></div>
+                </div>
+                <div class="progress-text">${completionRate}% Complete</div>
+            `;
+        }
+
+        // Task queue display
+        function updateTaskQueue() {
+            const tasksByStatus = tasks.reduce((acc, task) => {
+                if (!acc[task.status]) acc[task.status] = [];
+                acc[task.status].push(task);
+                return acc;
+            }, {});
+
+            let html = '';
+            ['pending', 'in_progress', 'completed', 'blocked'].forEach(status => {
+                const statusTasks = tasksByStatus[status] || [];
+                if (statusTasks.length > 0) {
+                    html += `<div class="metric">
+                        <span class="metric-label">${status.replace('_', ' ').toUpperCase()}</span>
+                        <span class="metric-value">${statusTasks.length}</span>
+                    </div>`;
+                }
+            });
+
+            document.getElementById('taskQueue').innerHTML = html || '<p>No tasks in queue</p>';
+        }
+
+        // System resources
+        function updateSystemResources() {
+            // Simulate resource data
+            const cpuUsage = Math.floor(Math.random() * 40) + 20;
+            const memoryUsage = Math.floor(Math.random() * 30) + 40;
+            const diskUsage = Math.floor(Math.random() * 20) + 15;
+
+            document.getElementById('systemResources').innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">CPU Usage</span>
+                    <span class="metric-value">${cpuUsage}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory Usage</span>
+                    <span class="metric-value">${memoryUsage}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Disk Usage</span>
+                    <span class="metric-value">${diskUsage}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Active Processes</span>
+                    <span class="metric-value">${agents.filter(a => a.status === 'running').length}</span>
+                </div>
+            `;
+
+            // Update resource chart data
+            resourceData.push({
+                time: new Date(),
+                cpu: cpuUsage,
+                memory: memoryUsage,
+                disk: diskUsage
+            });
+
+            // Keep only last 20 data points
+            if (resourceData.length > 20) {
+                resourceData.shift();
+            }
+        }
+
+        // Active agents display
+        function updateActiveAgents() {
+            const container = document.getElementById('activeAgents');
+
+            if (agents.length === 0) {
+                container.innerHTML = '<p>No active agents</p>';
+                return;
+            }
+
+            const agentCards = agents.map(agent => `
+                <div class="card agent-card" onclick="showAgentDetails('${agent.id}')">
+                    <div class="agent-header">
+                        <div class="agent-id">${agent.id}</div>
+                        <div class="agent-status status-${agent.status}">${agent.status}</div>
+                    </div>
+                    <div class="agent-task">${agent.task}</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${agent.progress}%"></div>
+                    </div>
+                    <div class="progress-text">${agent.progress}% Complete</div>
+                    ${agent.error ? `<div class="error-message">${agent.error}</div>` : ''}
+                    <div class="metric">
+                        <span class="metric-label">Priority</span>
+                        <span class="metric-value">${agent.priority}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Type</span>
+                        <span class="metric-value">${agent.type}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = agentCards;
+        }
+
+        // Timeline display
+        function updateTimeline() {
+            const timelineEvents = agents
+                .filter(agent => agent.startTime)
+                .sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
+                .slice(0, 10);
+
+            const timelineHtml = timelineEvents.map(agent => `
+                <div class="timeline-item">
+                    <div class="timeline-time">${formatTime(agent.startTime)}</div>
+                    <div class="timeline-content">
+                        <strong>${agent.id}</strong> ${agent.status === 'completed' ? 'completed' : 'started'}: ${agent.task}
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('timeline').innerHTML = timelineHtml || '<p>No recent activity</p>';
+        }
+
+        // Logs display
+        function updateLogs() {
+            const container = document.getElementById('logsContainer');
+
+            const logsHtml = logs.slice(-50).reverse().map(log => `
+                <div class="log-entry">
+                    <span class="log-time">${formatTime(log.time)}</span>
+                    <span class="log-level-${log.level}">[${log.level.toUpperCase()}]</span>
+                    <span class="log-message">${log.message}</span>
+                    ${log.agent ? `<span class="log-agent">(${log.agent})</span>` : ''}
+                </div>
+            `).join('');
+
+            container.innerHTML = logsHtml || '<p>No logs available</p>';
+
+            if (autoScrollLogs) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // Chart initialization
+        function initializeCharts() {
+            // Resource chart
+            const resourceCtx = document.getElementById('resourceChart').getContext('2d');
+            charts.resource = new Chart(resourceCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'CPU %',
+                            data: [],
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102,126,234,0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Memory %',
+                            data: [],
+                            borderColor: '#764ba2',
+                            backgroundColor: 'rgba(118,75,162,0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+
+            // Task distribution chart
+            const taskCtx = document.getElementById('taskDistributionChart').getContext('2d');
+            charts.taskDistribution = new Chart(taskCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Security', 'Testing', 'Performance', 'Documentation', 'Refactoring'],
+                    datasets: [{
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: [
+                            '#f44336',
+                            '#4CAF50',
+                            '#2196F3',
+                            '#FFC107',
+                            '#9c27b0'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update charts
+        function updateResourceChart() {
+            if (resourceData.length === 0) return;
+
+            const labels = resourceData.map(d => formatTime(d.time));
+            const cpuData = resourceData.map(d => d.cpu);
+            const memoryData = resourceData.map(d => d.memory);
+
+            charts.resource.data.labels = labels;
+            charts.resource.data.datasets[0].data = cpuData;
+            charts.resource.data.datasets[1].data = memoryData;
+            charts.resource.update('none');
+        }
+
+        function updateTaskDistributionChart() {
+            const typeCounts = agents.reduce((acc, agent) => {
+                acc[agent.type] = (acc[agent.type] || 0) + 1;
+                return acc;
+            }, {});
+
+            const data = [
+                typeCounts.security || 0,
+                typeCounts.testing || 0,
+                typeCounts.performance || 0,
+                typeCounts.documentation || 0,
+                typeCounts.refactoring || 0
+            ];
+
+            charts.taskDistribution.data.datasets[0].data = data;
+            charts.taskDistribution.update();
+        }
+
+        // Activity heatmap
+        function generateActivityHeatmap() {
+            const container = document.getElementById('activityHeatmap');
+            let html = '';
+
+            for (let hour = 0; hour < 24; hour++) {
+                const activity = Math.floor(Math.random() * 6); // 0-5 activity level
+                const activityClass = activity > 0 ? `active-${activity}` : '';
+                html += `<div class="heatmap-cell ${activityClass}" title="Hour ${hour}: ${activity} activities"></div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Utility functions
+        function formatTime(date) {
+            if (!date) return 'N/A';
+            if (typeof date === 'string') date = new Date(date);
+            return date.toLocaleTimeString();
+        }
+
+        // Event handlers
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.body.className = currentTheme;
+            localStorage.setItem('theme', currentTheme);
+        }
+
+        function refreshData() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({ type: 'request_status' }));
+            } else {
+                loadDemoData();
+            }
+        }
+
+        function exportLogs() {
+            const logData = logs.map(log =>
+                `${formatTime(log.time)} [${log.level.toUpperCase()}] ${log.message} ${log.agent ? `(${log.agent})` : ''}`
+            ).join('\n');
+
+            const blob = new Blob([logData], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `opencode-logs-${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showAgentDetails(agentId) {
+            const agent = agents.find(a => a.id === agentId);
+            if (!agent) return;
+
+            const agentLogs = logs.filter(log => log.agent === agentId).slice(-20);
+            const logHtml = agentLogs.map(log => `
+                <div class="log-entry">
+                    <span class="log-time">${formatTime(log.time)}</span>
+                    <span class="log-level-${log.level}">[${log.level.toUpperCase()}]</span>
+                    <span class="log-message">${log.message}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('modalTitle').textContent = `Agent Details: ${agentId}`;
+            document.getElementById('modalBody').innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value status-${agent.status}">${agent.status}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Type</span>
+                    <span class="metric-value">${agent.type}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Priority</span>
+                    <span class="metric-value">${agent.priority}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Progress</span>
+                    <span class="metric-value">${agent.progress}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Task</span>
+                    <span class="metric-value">${agent.task}</span>
+                </div>
+                ${agent.error ? `<div class="error-message">${agent.error}</div>` : ''}
+                <h3 style="margin: 20px 0 10px 0;">Recent Logs</h3>
+                <div class="logs-container" style="max-height: 300px;">
+                    ${logHtml || '<p>No logs available for this agent</p>'}
+                </div>
+            `;
+
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        function showTaskDetails() {
+            document.getElementById('modalTitle').textContent = 'Task Queue Details';
+
+            const taskHtml = tasks.map(task => `
+                <div class="card" style="margin-bottom: 16px;">
+                    <div class="metric">
+                        <span class="metric-label">ID</span>
+                        <span class="metric-value">${task.id}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Type</span>
+                        <span class="metric-value">${task.type}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Status</span>
+                        <span class="metric-value status-${task.status}">${task.status}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Priority</span>
+                        <span class="metric-value">${task.priority}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Description</span>
+                        <span class="metric-value">${task.description}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('modalBody').innerHTML = taskHtml || '<p>No tasks available</p>';
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+
+        function filterAgents() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+
+            const filteredAgents = agents.filter(agent => {
+                const matchesStatus = !statusFilter || agent.status === statusFilter;
+                const matchesType = !typeFilter || agent.type === typeFilter;
+                const matchesSearch = !searchFilter ||
+                    agent.id.toLowerCase().includes(searchFilter) ||
+                    agent.task.toLowerCase().includes(searchFilter);
+
+                return matchesStatus && matchesType && matchesSearch;
+            });
+
+            // Update agents display with filtered results
+            const container = document.getElementById('activeAgents');
+
+            if (filteredAgents.length === 0) {
+                container.innerHTML = '<p>No agents match the current filters</p>';
+                return;
+            }
+
+            const agentCards = filteredAgents.map(agent => `
+                <div class="card agent-card" onclick="showAgentDetails('${agent.id}')">
+                    <div class="agent-header">
+                        <div class="agent-id">${agent.id}</div>
+                        <div class="agent-status status-${agent.status}">${agent.status}</div>
+                    </div>
+                    <div class="agent-task">${agent.task}</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${agent.progress}%"></div>
+                    </div>
+                    <div class="progress-text">${agent.progress}% Complete</div>
+                    ${agent.error ? `<div class="error-message">${agent.error}</div>` : ''}
+                    <div class="metric">
+                        <span class="metric-label">Priority</span>
+                        <span class="metric-value">${agent.priority}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Type</span>
+                        <span class="metric-value">${agent.type}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = agentCards;
+        }
+
+        function filterLogs() {
+            const levelFilter = document.getElementById('logLevelFilter').value;
+            const searchFilter = document.getElementById('logSearchFilter').value.toLowerCase();
+
+            const filteredLogs = logs.filter(log => {
+                const matchesLevel = !levelFilter || log.level === levelFilter;
+                const matchesSearch = !searchFilter ||
+                    log.message.toLowerCase().includes(searchFilter) ||
+                    (log.agent && log.agent.toLowerCase().includes(searchFilter));
+
+                return matchesLevel && matchesSearch;
+            });
+
+            const container = document.getElementById('logsContainer');
+            const logsHtml = filteredLogs.slice(-50).reverse().map(log => `
+                <div class="log-entry">
+                    <span class="log-time">${formatTime(log.time)}</span>
+                    <span class="log-level-${log.level}">[${log.level.toUpperCase()}]</span>
+                    <span class="log-message">${log.message}</span>
+                    ${log.agent ? `<span class="log-agent">(${log.agent})</span>` : ''}
+                </div>
+            `).join('');
+
+            container.innerHTML = logsHtml || '<p>No logs match the current filters</p>';
+        }
+
+        function clearLogs() {
+            logs = [];
+            updateLogs();
+        }
+
+        function toggleLogAutoScroll() {
+            autoScrollLogs = !autoScrollLogs;
+            const button = event.target;
+            button.textContent = `Auto-scroll: ${autoScrollLogs ? 'ON' : 'OFF'}`;
+        }
+
+        // Update functions called by WebSocket
+        function updateAgent(agentData) {
+            const existingIndex = agents.findIndex(a => a.id === agentData.id);
+            if (existingIndex >= 0) {
+                agents[existingIndex] = { ...agents[existingIndex], ...agentData };
+            } else {
+                agents.push(agentData);
+            }
+            updateActiveAgents();
+            updateAgentStatusOverview();
+        }
+
+        function updateTask(taskData) {
+            const existingIndex = tasks.findIndex(t => t.id === taskData.id);
+            if (existingIndex >= 0) {
+                tasks[existingIndex] = { ...tasks[existingIndex], ...taskData };
+            } else {
+                tasks.push(taskData);
+            }
+            updateTaskQueue();
+        }
+
+        function addLogEntry(logData) {
+            logs.push(logData);
+            if (logs.length > 1000) {
+                logs.shift(); // Keep only last 1000 logs
+            }
+            updateLogs();
+        }
+
+        function updateResourceData(resourceData) {
+            // Handle resource updates from WebSocket
+            updateSystemResources();
+        }
+
+        // Load theme from localStorage
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            currentTheme = savedTheme;
+            document.body.className = currentTheme;
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
