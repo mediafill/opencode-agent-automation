@@ -1,0 +1,63 @@
+Performance Profile Report - 2025-09-26 10:23:12.695405
+============================================================
+
+Top 50 functions by cumulative time:
+----------------------------------------
+         675 function calls (662 primitive calls) in 0.005 seconds
+
+   Ordered by: cumulative time
+   List reduced from 188 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      3/2    0.000    0.000    0.002    0.001 /usr/lib/python3.13/threading.py:955(start)
+      2/1    0.000    0.000    0.002    0.002 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:65(start_system_monitoring)
+      3/2    0.000    0.000    0.002    0.001 /usr/lib/python3.13/threading.py:641(wait)
+      2/1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:205(run_task_manager)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:108(info)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:99(_log_with_context)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1575(log)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1641(_log)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1667(handle)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1721(callHandlers)
+        2    0.000    0.000    0.001    0.000 /usr/lib/python3.13/logging/__init__.py:1011(handle)
+        8    0.000    0.000    0.001    0.000 /usr/lib/python3.13/pathlib/_local.py:227(__str__)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/site-packages/psutil/__init__.py:2139(net_io_counters)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:189(__init__)
+        7    0.000    0.000    0.001    0.000 /usr/lib/python3.13/pathlib/_local.py:166(__fspath__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:2081(disk_io_counters)
+        3    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:717(mkdir)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:990(net_io_counters)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:289(drive)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:1139(emit)
+      2/1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:586(start)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:1073(disk_io_counters)
+        3    0.000    0.000    0.000    0.000 {built-in method posix.mkdir}
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/handlers.py:71(emit)
+        1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/intelligent_cache.py:278(_load_persistent_cache)
+      2/1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:306(load_tasks_from_file)
+      3/2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:327(wait)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:510(stat)
+        3    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:988(format)
+      2/1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/intelligent_cache.py:340(cache_file_operation)
+        5    0.000    0.000    0.000    0.000 {built-in method posix.stat}
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:277(_raw_path)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_abc.py:442(exists)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1675(cpu_times)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:540(cpu_times)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:148(__truediv__)
+        2    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:20(format)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_abc.py:130(with_segments)
+        8    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:1078(read_procfs)
+        2    0.000    0.000    0.000    0.000 {built-in method _thread.start_joinable_thread}
+        7    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:498(__init__)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:869(__init__)
+      2/1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/intelligent_cache.py:330(get_cache)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/handlers.py:189(shouldRollover)
+        2    0.000    0.000    0.000    0.000 {method 'write' of '_io.TextIOWrapper' objects}
+        7    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:117(__init__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:1626(makeRecord)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:1251(emit)
+        4    0.000    0.000    0.000    0.000 <frozen posixpath>:72(join)
+        3    0.000    0.000    0.000    0.000 {built-in method _io.open}
+
+

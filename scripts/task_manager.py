@@ -16,23 +16,34 @@ import subprocess
 
 try:
     from logger import StructuredLogger
+
     logger = StructuredLogger(__name__)
 except ImportError:
     import logging
+
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
 try:
     from intelligent_cache import (
-        get_cache, cache_file_operation, cache_process_operation,
-        cache_system_operation, cache_task_operation, cache_log_operation,
-        invalidate_file_cache, invalidate_process_cache, invalidate_system_cache,
-        invalidate_task_cache, invalidate_log_cache
+        get_cache,
+        cache_file_operation,
+        cache_process_operation,
+        cache_system_operation,
+        cache_task_operation,
+        cache_log_operation,
+        invalidate_file_cache,
+        invalidate_process_cache,
+        invalidate_system_cache,
+        invalidate_task_cache,
+        invalidate_log_cache,
     )
+
     CACHE_AVAILABLE = True
 except ImportError:
     CACHE_AVAILABLE = False
     logger.warning("Intelligent cache not available, using basic caching")
+
 
 class TaskStatus(Enum):
     PENDING = "pending"
@@ -43,21 +54,23 @@ class TaskStatus(Enum):
     CANCELLED = "cancelled"
     RETRYING = "retrying"
 
+
 class TaskPriority(Enum):
     LOW = 0
     MEDIUM = 1
     HIGH = 2
     CRITICAL = 3
 
+
 class Task:
     """Represents a single task with full lifecycle management"""
 
     def __init__(self, task_data: Dict):
-        self.id = task_data.get('id', f'task_{int(time.time())}')
-        self.type = task_data.get('type', 'general')
-        self.priority = TaskPriority[task_data.get('priority', 'MEDIUM').upper()]
-        self.description = task_data.get('description', '')
-        self.files_pattern = task_data.get('files_pattern', '**/*')
+        self.id = task_data.get("id", f"task_{int(time.time())}")
+        self.type = task_data.get("type", "general")
+        self.priority = TaskPriority[task_data.get("priority", "MEDIUM").upper()]
+        self.description = task_data.get("description", "")
+        self.files_pattern = task_data.get("files_pattern", "**/*")
 
         # Execution state
         self.status = TaskStatus.PENDING
@@ -72,7 +85,9 @@ class Task:
         # Process management
         self.process: Optional[subprocess.Popen] = None
         self.log_file: Optional[Path] = None
-        self.estimated_duration = task_data.get('estimated_duration', 300)  # 5 minutes default
+        self.estimated_duration = task_data.get(
+            "estimated_duration", 300
+        )  # 5 minutes default
 
         # Callbacks
         self.on_status_change: Optional[Callable] = None
@@ -81,20 +96,22 @@ class Task:
     def to_dict(self) -> Dict:
         """Convert task to dictionary for serialization"""
         return {
-            'id': self.id,
-            'type': self.type,
-            'priority': self.priority.name.lower(),
-            'description': self.description,
-            'files_pattern': self.files_pattern,
-            'status': self.status.value,
-            'progress': self.progress,
-            'created_at': self.created_at.isoformat(),
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'error': self.error,
-            'retry_count': self.retry_count,
-            'max_retries': self.max_retries,
-            'estimated_duration': self.estimated_duration
+            "id": self.id,
+            "type": self.type,
+            "priority": self.priority.name.lower(),
+            "description": self.description,
+            "files_pattern": self.files_pattern,
+            "status": self.status.value,
+            "progress": self.progress,
+            "created_at": self.created_at.isoformat(),
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
+            "error": self.error,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
+            "estimated_duration": self.estimated_duration,
         }
 
     def update_status(self, status: TaskStatus, error: Optional[str] = None):
@@ -119,6 +136,7 @@ class Task:
 
         if self.on_progress_update and old_progress != self.progress:
             self.on_progress_update(self, old_progress, self.progress)
+
 
 class TaskQueue:
     """Priority queue for managing task execution order with optimized operations"""
@@ -183,48 +201,60 @@ class TaskQueue:
         with self.lock:
             return self.tasks.copy()
 
+
 class TaskManager:
     """Central task management system with optimized caching"""
 
     def __init__(self, project_dir: Optional[str] = None, max_concurrent: int = 4):
-        self.project_dir = Path(project_dir or ".")
-        self.claude_dir = self.project_dir / ".claude"
-        self.logs_dir = self.claude_dir / "logs"
-        self.tasks_file = self.claude_dir / "tasks.json"
-        self.status_file = self.claude_dir / "task_status.json"
+        try:
+            self.project_dir = Path(project_dir or ".")
+            self.claude_dir = self.project_dir / ".claude"
+            self.logs_dir = self.claude_dir / "logs"
+            self.tasks_file = self.claude_dir / "tasks.json"
+            self.status_file = self.claude_dir / "task_status.json"
 
-        self.max_concurrent = max_concurrent
-        self.queue = TaskQueue()
-        self.running_tasks: Dict[str, Task] = {}
-        self.completed_tasks: Dict[str, Task] = {}
+            self.max_concurrent = max(1, min(max_concurrent, 10))  # Reasonable bounds
+            self.queue = TaskQueue()
+            self.running_tasks: Dict[str, Task] = {}
+            self.completed_tasks: Dict[str, Task] = {}
 
-        # Event callbacks
-        self.status_callbacks: List[Callable] = []
-        self.progress_callbacks: List[Callable] = []
+            # Event callbacks
+            self.status_callbacks: List[Callable] = []
+            self.progress_callbacks: List[Callable] = []
 
-        # Progress tracking
-        self.progress_trackers: Dict[str, threading.Thread] = {}
+            # Progress tracking
+            self.progress_trackers: Dict[str, threading.Thread] = {}
 
-        # Caching system for performance optimization
-        self._tasks_cache: Optional[Dict] = None
-        self._status_cache: Optional[Dict] = None
-        self._cache_timestamps: Dict[str, float] = {}
-        self._cache_ttl = 30  # Cache TTL in seconds
-        self._cache_lock = threading.Lock()
+            # Caching system for performance optimization
+            self._tasks_cache: Optional[Dict] = None
+            self._status_cache: Optional[Dict] = None
+            self._cache_timestamps: Dict[str, float] = {}
+            self._cache_ttl = 30  # Cache TTL in seconds
+            self._cache_lock = threading.Lock()
 
-        # Content caching for performance
-        self._content_cache: Dict[str, str] = {}
-        self._file_positions: Dict[str, int] = {}
+            # Content caching for performance
+            self._content_cache: Dict[str, str] = {}
+            self._file_positions: Dict[str, int] = {}
 
-        # Indexing system for fast lookups
-        self._task_index: Dict[str, Task] = {}  # task_id -> Task
-        self._status_index: Dict[str, Set[str]] = {}  # status -> set of task_ids
-        self._priority_index: Dict[int, Set[str]] = {}  # priority_value -> set of task_ids
-        self._index_lock = threading.Lock()
+            # Indexing system for fast lookups
+            self._task_index: Dict[str, Task] = {}  # task_id -> Task
+            self._status_index: Dict[str, Set[str]] = {}  # status -> set of task_ids
+            self._priority_index: Dict[int, Set[str]] = (
+                {}
+            )  # priority_value -> set of task_ids
+            self._index_lock = threading.Lock()
 
-        # Ensure directories exist
-        self.claude_dir.mkdir(exist_ok=True)
-        self.logs_dir.mkdir(exist_ok=True)
+            # Ensure directories exist
+            self.claude_dir.mkdir(exist_ok=True)
+            self.logs_dir.mkdir(exist_ok=True)
+
+            # Initialize running state
+            self.is_running = False
+            self.executor_thread = None
+
+        except (OSError, ValueError, TypeError) as e:
+            logger.error(f"Failed to initialize TaskManager: {e}")
+            raise RuntimeError(f"TaskManager initialization failed: {e}")
 
     def add_status_callback(self, callback: Callable):
         """Add callback for status changes"""
@@ -234,7 +264,9 @@ class TaskManager:
         """Add callback for progress updates"""
         self.progress_callbacks.append(callback)
 
-    def _notify_status_change(self, task: Task, old_status: TaskStatus, new_status: TaskStatus):
+    def _notify_status_change(
+        self, task: Task, old_status: TaskStatus, new_status: TaskStatus
+    ):
         """Notify all callbacks of status change"""
         for callback in self.status_callbacks:
             try:
@@ -257,7 +289,37 @@ class TaskManager:
         return (time.time() - self._cache_timestamps[cache_key]) < self._cache_ttl
 
     def _get_cached_data(self, file_path: Path, cache_key: str) -> Optional[Dict]:
-        """Get data from cache or load from file"""
+        """Get data from intelligent cache or load from file"""
+        if not CACHE_AVAILABLE:
+            # Fallback to basic caching if intelligent cache not available
+            return self._get_basic_cached_data(file_path, cache_key)
+
+        try:
+            # Use intelligent cache with appropriate TTL based on cache type
+            cache = get_cache()
+            cache_type = 'task' if cache_key == 'tasks' else 'system'
+            key = f"{cache_key}_{file_path.name}"
+
+            # Try to get from cache first
+            cached_data = cache.get(key)
+            if cached_data is not None:
+                return cached_data
+
+            # Load from file and cache it
+            if file_path.exists():
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    cache.set(key, data, cache_type=cache_type)
+                    return data
+        except Exception as e:
+            logger.warning(f"Error using intelligent cache for {cache_key}: {e}")
+            # Fallback to basic caching
+            return self._get_basic_cached_data(file_path, cache_key)
+
+        return None
+
+    def _get_basic_cached_data(self, file_path: Path, cache_key: str) -> Optional[Dict]:
+        """Basic caching fallback when intelligent cache is not available"""
         with self._cache_lock:
             if self._is_cache_valid(cache_key):
                 if cache_key == 'tasks':
@@ -284,78 +346,70 @@ class TaskManager:
     def _get_cached_content(self, task_id: str) -> Optional[str]:
         """Get cached content for a task"""
         return self._content_cache.get(task_id)
-    
+
     def _update_cached_content(self, task_id: str, content: str):
         """Update cached content for a task"""
         self._content_cache[task_id] = content
 
     def _invalidate_cache(self, cache_key: str):
-        """Invalidate specific cache entry"""
+        """Invalidate specific cache entry in both intelligent and basic caches"""
+        # Invalidate intelligent cache
+        if CACHE_AVAILABLE:
+            try:
+                cache = get_cache()
+                # Clear all entries with this cache_key prefix
+                cache.clear(f"{cache_key}_")
+            except Exception as e:
+                logger.warning(f"Could not invalidate intelligent cache for {cache_key}: {e}")
+
+        # Also invalidate basic cache as fallback
         with self._cache_lock:
-            if cache_key == 'tasks':
+            if cache_key == "tasks":
                 self._tasks_cache = None
-            elif cache_key == 'status':
+            elif cache_key == "status":
                 self._status_cache = None
             if cache_key in self._cache_timestamps:
                 del self._cache_timestamps[cache_key]
 
     def load_tasks_from_file(self) -> List[Task]:
         """Load tasks from tasks.json file with intelligent caching"""
-        if not CACHE_AVAILABLE:
-            # Fallback to original implementation
-            data = self._get_cached_data(self.tasks_file, 'tasks')
-            if data is None:
-                return []
+        data = self._get_cached_data(self.tasks_file, "tasks")
+        if data is None:
+            return []
 
-            tasks = []
-            task_list = data.get('tasks', [])
+        tasks = []
+        task_list = data.get("tasks", [])
 
-            for task_data in task_list:
-                task = Task(task_data)
-                task.on_status_change = self._notify_status_change
-                task.on_progress_update = self._notify_progress_update
-                tasks.append(task)
+        for task_data in task_list:
+            task = Task(task_data)
+            task.on_status_change = self._notify_status_change
+            task.on_progress_update = self._notify_progress_update
+            tasks.append(task)
 
-            return tasks
-
-        # Use intelligent caching
-        def _load_tasks_data():
-            try:
-                if self.tasks_file.exists():
-                    with open(self.tasks_file, 'r') as f:
-                        data = json.load(f)
-                        tasks_list = data.get('tasks', [])
-
-                        tasks = []
-                        for task_data in tasks_list:
-                            task = Task(task_data)
-                            task.on_status_change = self._notify_status_change
-                            task.on_progress_update = self._notify_progress_update
-                            tasks.append(task)
-                        return tasks
-                return []
-            except Exception as e:
-                logger.error(f"Error loading tasks: {e}")
-                return []
-
-        # Cache the task loading operation
-        return cache_file_operation(_load_tasks_data, str(self.tasks_file))
+        return tasks
 
     def save_task_status(self):
         """Save current task status to file and invalidate cache"""
         try:
             status_data = {
-                'updated_at': datetime.now().isoformat(),
-                'running_tasks': [task.to_dict() for task in self.running_tasks.values()],
-                'queued_tasks': [task.to_dict() for task in self.queue.get_tasks_by_status(TaskStatus.QUEUED)],
-                'completed_tasks': [task.to_dict() for task in self.completed_tasks.values()]
+                "updated_at": datetime.now().isoformat(),
+                "running_tasks": [
+                    task.to_dict() for task in self.running_tasks.values()
+                ],
+                "queued_tasks": [
+                    task.to_dict()
+                    for task in self.queue.get_tasks_by_status(TaskStatus.QUEUED)
+                ],
+                "completed_tasks": [
+                    task.to_dict() for task in self.completed_tasks.values()
+                ],
             }
 
-            with open(self.status_file, 'w') as f:
+            with open(self.status_file, "w") as f:
                 json.dump(status_data, f, indent=2)
 
             # Invalidate cache
-            self._invalidate_cache('status')
+            self._invalidate_cache("status")
 
         except Exception as e:
             logger.error(f"Error saving task status: {e}")
@@ -370,9 +424,13 @@ class TaskManager:
         self.save_task_status()
 
         # Invalidate tasks cache since we might save tasks too
-        self._invalidate_cache('tasks')
+        self._invalidate_cache("tasks")
         if CACHE_AVAILABLE:
-            invalidate_task_cache()
+            try:
+                # Try to call invalidate_task_cache if it was imported
+                globals().get("invalidate_task_cache", lambda: None)()
+            except Exception as e:
+                logger.warning(f"Could not invalidate external task cache: {e}")
 
         logger.info(f"Added task {task.id} to queue")
 
@@ -403,7 +461,11 @@ class TaskManager:
     def retry_task(self, task_id: str) -> bool:
         """Retry a failed task"""
         task = self.completed_tasks.get(task_id)
-        if task and task.status == TaskStatus.FAILED and task.retry_count < task.max_retries:
+        if (
+            task
+            and task.status == TaskStatus.FAILED
+            and task.retry_count < task.max_retries
+        ):
             task.retry_count += 1
             task.error = None
             task.progress = 0
@@ -436,15 +498,12 @@ Files to examine: {task.files_pattern}
 Please analyze the code and implement improvements.
 """
 
-            cmd = ['opencode', 'run', prompt]
+            cmd = ["opencode", "run", prompt]
 
             # Start the process
-            with open(log_file, 'w') as log:
+            with open(log_file, "w") as log:
                 task.process = subprocess.Popen(
-                    cmd,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    cwd=str(self.project_dir)
+                    cmd, stdout=log, stderr=subprocess.STDOUT, cwd=str(self.project_dir)
                 )
 
             task.update_status(TaskStatus.RUNNING)
@@ -463,6 +522,7 @@ Please analyze the code and implement improvements.
 
     def start_progress_tracking(self, task: Task):
         """Start tracking progress for a task with optimized incremental file reading"""
+
         def track_progress():
             last_mtime = 0
             file_position = self._file_positions.get(task.id, 0)
@@ -475,7 +535,7 @@ Please analyze the code and implement improvements.
                         if current_mtime > last_mtime:
                             # File has been modified, read only new content incrementally
                             # This avoids re-reading the entire file on each check
-                            with open(task.log_file, 'r') as f:
+                            with open(task.log_file, "r") as f:
                                 f.seek(file_position)
                                 new_content = f.read()
                                 if new_content:
@@ -483,27 +543,42 @@ Please analyze the code and implement improvements.
                                     self._file_positions[task.id] = file_position
 
                                     # Get existing cached content and append new content
-                                    existing_content = self._get_cached_content(task.id) or ""
+                                    existing_content = (
+                                        self._get_cached_content(task.id) or ""
+                                    )
                                     full_content = existing_content + new_content
                                     self._update_cached_content(task.id, full_content)
 
                                     lines = len(full_content.splitlines())
 
                                     # Estimate progress based on multiple heuristics
-                                    if 'completed successfully' in full_content.lower():
+                                    if "completed successfully" in full_content.lower():
                                         task.update_progress(100)
                                         break
-                                    elif 'error' in full_content.lower() or 'failed' in full_content.lower():
+                                    elif (
+                                        "error" in full_content.lower()
+                                        or "failed" in full_content.lower()
+                                    ):
                                         break
                                     else:
                                         # Estimate based on log lines and time elapsed
                                         if task.started_at:
-                                            elapsed = (datetime.now() - task.started_at).total_seconds()
-                                            time_progress = min(90, (elapsed / task.estimated_duration) * 100)
+                                            elapsed = (
+                                                datetime.now() - task.started_at
+                                            ).total_seconds()
+                                            time_progress = min(
+                                                90,
+                                                (elapsed / task.estimated_duration)
+                                                * 100,
+                                            )
                                             line_progress = min(80, lines * 2)
 
-                                            estimated_progress = max(time_progress, line_progress)
-                                            task.update_progress(int(estimated_progress))
+                                            estimated_progress = max(
+                                                time_progress, line_progress
+                                            )
+                                            task.update_progress(
+                                                int(estimated_progress)
+                                            )
 
                                 last_mtime = current_mtime
 
@@ -532,11 +607,14 @@ Please analyze the code and implement improvements.
                         error_msg = "Process failed"
                         if task.log_file and task.log_file.exists():
                             try:
-                                with open(task.log_file, 'r') as f:
+                                with open(task.log_file, "r") as f:
                                     content = f.read()
                                     lines = content.splitlines()
                                     for line in reversed(lines):
-                                        if any(word in line.lower() for word in ['error', 'failed', 'exception']):
+                                        if any(
+                                            word in line.lower()
+                                            for word in ["error", "failed", "exception"]
+                                        ):
                                             error_msg = line.strip()[:200]
                                             break
                             except Exception:
@@ -619,74 +697,101 @@ Please analyze the code and implement improvements.
     def get_status_summary(self) -> Dict:
         """Get overall status summary"""
         all_tasks = (
-            list(self.running_tasks.values()) +
-            list(self.completed_tasks.values()) +
-            self.queue.get_all_tasks()
+            list(self.running_tasks.values())
+            + list(self.completed_tasks.values())
+            + self.queue.get_all_tasks()
         )
 
         status_counts = {}
         for status in TaskStatus:
-            status_counts[status.value] = len([t for t in all_tasks if t.status == status])
+            status_counts[status.value] = len(
+                [t for t in all_tasks if t.status == status]
+            )
 
         return {
-            'total_tasks': len(all_tasks),
-            'running': len(self.running_tasks),
-            'queued': len(self.queue.get_tasks_by_status(TaskStatus.QUEUED)),
-            'completed': len([t for t in all_tasks if t.status == TaskStatus.COMPLETED]),
-            'failed': len([t for t in all_tasks if t.status == TaskStatus.FAILED]),
-            'status_breakdown': status_counts,
-            'max_concurrent': self.max_concurrent
+            "total_tasks": len(all_tasks),
+            "running": len(self.running_tasks),
+            "queued": len(self.queue.get_tasks_by_status(TaskStatus.QUEUED)),
+            "completed": len(
+                [t for t in all_tasks if t.status == TaskStatus.COMPLETED]
+            ),
+            "failed": len([t for t in all_tasks if t.status == TaskStatus.FAILED]),
+            "status_breakdown": status_counts,
+            "max_concurrent": self.max_concurrent,
         }
+
 
 def main():
     """Test the task manager"""
-    import argparse
-
-    parser = argparse.ArgumentParser(description='OpenCode Task Manager')
-    parser.add_argument('--project', '-p', default='.', help='Project directory')
-    parser.add_argument('--max-concurrent', '-m', type=int, default=4, help='Max concurrent tasks')
-
-    args = parser.parse_args()
-
-    manager = TaskManager(args.project, args.max_concurrent)
-
-    # Add some test tasks
-    test_tasks = [
-        {
-            'id': f'test_task_1_{int(time.time())}',
-            'type': 'testing',
-            'priority': 'high',
-            'description': 'Run comprehensive tests',
-            'files_pattern': '**/*.py'
-        },
-        {
-            'id': f'test_task_2_{int(time.time())}',
-            'type': 'security',
-            'priority': 'medium',
-            'description': 'Security audit',
-            'files_pattern': '**/*'
-        }
-    ]
-
-    for task_data in test_tasks:
-        manager.add_task(task_data)
-
-    # Add status callback for logging
-    def status_callback(task, old_status, new_status):
-        logger.info(f"Task {task.id} status: {old_status.value} -> {new_status.value}")
-
-    manager.add_status_callback(status_callback)
-
     try:
-        manager.start()
-        logger.info("Task manager started. Press Ctrl+C to stop.")
+        import argparse
 
-        while True:
-            time.sleep(1)
+        parser = argparse.ArgumentParser(description="OpenCode Task Manager")
+        parser.add_argument("--project", "-p", default=".", help="Project directory")
+        parser.add_argument(
+            "--max-concurrent", "-m", type=int, default=4, help="Max concurrent tasks"
+        )
 
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-        manager.stop()
+        args = parser.parse_args()
 
-if __name__ == '__main__':
+        try:
+            manager = TaskManager(args.project, args.max_concurrent)
+        except Exception as e:
+            logger.error(f"Failed to create TaskManager: {e}")
+            return
+
+        # Add some test tasks
+        test_tasks = [
+            {
+                "id": f"test_task_1_{int(time.time())}",
+                "type": "testing",
+                "priority": "high",
+                "description": "Run comprehensive tests",
+                "files_pattern": "**/*.py",
+            },
+            {
+                "id": f"test_task_2_{int(time.time())}",
+                "type": "security",
+                "priority": "medium",
+                "description": "Security audit",
+                "files_pattern": "**/*",
+            },
+        ]
+
+        for task_data in test_tasks:
+            try:
+                manager.add_task(task_data)
+            except Exception as e:
+                logger.error(
+                    f"Failed to add task {task_data.get('id', 'unknown')}: {e}"
+                )
+                continue
+
+        # Add status callback for logging
+        def status_callback(task, old_status, new_status):
+            logger.info(
+                f"Task {task.id} status: {old_status.value} -> {new_status.value}"
+            )
+
+        manager.add_status_callback(status_callback)
+
+        try:
+            manager.start()
+            logger.info("Task manager started. Press Ctrl+C to stop.")
+
+            while True:
+                time.sleep(1)
+
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
+            manager.stop()
+
+    except Exception as e:
+        logger.error(f"Fatal error in main: {e}")
+        import sys
+
+        sys.exit(1)
+
+
+if __name__ == "__main__":
     main()

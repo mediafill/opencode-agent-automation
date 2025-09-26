@@ -16,12 +16,15 @@ from typing import Dict, List, Optional, Tuple
 # Import structured logging
 try:
     from logger import StructuredLogger
+
     logger = StructuredLogger(__name__)
 except ImportError:
     # Fallback to basic logging if structured logger not available
     import logging
+
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
+
 
 class TaskDelegator:
     """Manages task delegation to OpenCode agents"""
@@ -52,40 +55,42 @@ class TaskDelegator:
             - has_ci: Boolean indicating CI/CD pipeline configuration
         """
         project_info = {
-            'type': 'unknown',
-            'languages': [],
-            'frameworks': [],
-            'has_tests': False,
-            'has_ci': False
+            "type": "unknown",
+            "languages": [],
+            "frameworks": [],
+            "has_tests": False,
+            "has_ci": False,
         }
 
         # Map configuration files to their corresponding language/framework pairs
         # This allows us to automatically detect the technology stack without user input
         checks = {
-            'package.json': ('javascript', 'node'),
-            'requirements.txt': ('python', 'python'),
-            'Gemfile': ('ruby', 'rails'),
-            'go.mod': ('go', 'go'),
-            'Cargo.toml': ('rust', 'rust'),
-            'pom.xml': ('java', 'maven'),
-            'composer.json': ('php', 'php'),
+            "package.json": ("javascript", "node"),
+            "requirements.txt": ("python", "python"),
+            "Gemfile": ("ruby", "rails"),
+            "go.mod": ("go", "go"),
+            "Cargo.toml": ("rust", "rust"),
+            "pom.xml": ("java", "maven"),
+            "composer.json": ("php", "php"),
         }
 
         # Scan for each configuration file and record detected technologies
         for file, (lang, framework) in checks.items():
             if (self.project_dir / file).exists():
-                project_info['languages'].append(lang)
-                project_info['frameworks'].append(framework)
+                project_info["languages"].append(lang)
+                project_info["frameworks"].append(framework)
 
         # Detect test infrastructure by checking for common test directory patterns
         # This helps determine if testing tasks should be prioritized
-        test_dirs = ['test', 'tests', 'spec', '__tests__']
-        project_info['has_tests'] = any((self.project_dir / d).exists() for d in test_dirs)
+        test_dirs = ["test", "tests", "spec", "__tests__"]
+        project_info["has_tests"] = any(
+            (self.project_dir / d).exists() for d in test_dirs
+        )
 
         # Detect CI/CD setup to understand deployment maturity
         # This influences task priority for production readiness features
-        ci_files = ['.github/workflows', '.gitlab-ci.yml', 'Jenkinsfile', '.travis.yml']
-        project_info['has_ci'] = any((self.project_dir / f).exists() for f in ci_files)
+        ci_files = [".github/workflows", ".gitlab-ci.yml", "Jenkinsfile", ".travis.yml"]
+        project_info["has_ci"] = any((self.project_dir / f).exists() for f in ci_files)
 
         return project_info
 
@@ -103,6 +108,7 @@ class TaskDelegator:
             except Exception as e:
                 print(f"Warning: OpenCode task generation failed: {e}")
                 import traceback
+
                 traceback.print_exc()
 
         # Fallback to simple task creation
@@ -156,11 +162,11 @@ Focus on creating tasks that directly address the stated objective, not generic 
         try:
             # Run OpenCode with the analysis prompt
             result = subprocess.run(
-                ['opencode', 'run', analysis_prompt],
+                ["opencode", "run", analysis_prompt],
                 capture_output=True,
                 text=True,
                 timeout=60,
-                cwd=str(self.project_dir)
+                cwd=str(self.project_dir),
             )
 
             if result.returncode == 0 and result.stdout:
@@ -169,7 +175,7 @@ Focus on creating tasks that directly address the stated objective, not generic 
                     output = result.stdout.strip()
 
                     # Try to find JSON array in the output
-                    json_match = re.search(r'\[.*?\]', output, re.DOTALL)
+                    json_match = re.search(r"\[.*?\]", output, re.DOTALL)
                     if json_match:
                         json_str = json_match.group(0)
                         tasks = json.loads(json_str)
@@ -177,61 +183,79 @@ Focus on creating tasks that directly address the stated objective, not generic 
                         # Add timestamp to task IDs to ensure uniqueness
                         timestamp = int(time.time())
                         for task in tasks:
-                            if 'id' in task and not str(timestamp) in task['id']:
-                                base_id = task['id'].split('_')[0] if '_' in task['id'] else task.get('type', 'task')
-                                task['id'] = f"{base_id}_{timestamp}"
+                            if "id" in task and not str(timestamp) in task["id"]:
+                                base_id = (
+                                    task["id"].split("_")[0]
+                                    if "_" in task["id"]
+                                    else task.get("type", "task")
+                                )
+                                task["id"] = f"{base_id}_{timestamp}"
 
-                        if hasattr(logger, 'info'):
-                            logger.info(f"Generated {len(tasks)} tasks using OpenCode analysis")
+                        if hasattr(logger, "info"):
+                            logger.info(
+                                f"Generated {len(tasks)} tasks using OpenCode analysis"
+                            )
                         else:
-                            print(f"Generated {len(tasks)} tasks using OpenCode analysis")
+                            print(
+                                f"Generated {len(tasks)} tasks using OpenCode analysis"
+                            )
 
                         return tasks
                     else:
-                        if hasattr(logger, 'warning'):
-                            logger.warning("No JSON found in OpenCode response, falling back")
+                        if hasattr(logger, "warning"):
+                            logger.warning(
+                                "No JSON found in OpenCode response, falling back"
+                            )
                         else:
-                            print("Warning: No JSON found in OpenCode response, falling back")
+                            print(
+                                "Warning: No JSON found in OpenCode response, falling back"
+                            )
                 except json.JSONDecodeError as e:
-                    if hasattr(logger, 'error'):
+                    if hasattr(logger, "error"):
                         logger.error(f"Failed to parse OpenCode JSON response: {e}")
                     else:
                         print(f"Error: Failed to parse OpenCode JSON response: {e}")
             else:
-                if hasattr(logger, 'warning'):
-                    logger.warning(f"OpenCode analysis failed (exit {result.returncode})")
+                if hasattr(logger, "warning"):
+                    logger.warning(
+                        f"OpenCode analysis failed (exit {result.returncode})"
+                    )
                 else:
-                    print(f"Warning: OpenCode analysis failed (exit {result.returncode})")
+                    print(
+                        f"Warning: OpenCode analysis failed (exit {result.returncode})"
+                    )
 
         except subprocess.TimeoutExpired:
-            if hasattr(logger, 'warning'):
+            if hasattr(logger, "warning"):
                 logger.warning("OpenCode analysis timed out")
             else:
                 print("Warning: OpenCode analysis timed out")
         except Exception as e:
-            if hasattr(logger, 'error'):
+            if hasattr(logger, "error"):
                 logger.error(f"Error during OpenCode analysis: {e}")
             else:
                 print(f"Error during OpenCode analysis: {e}")
 
         # Fallback to simple task creation if OpenCode analysis fails
-        return [{
-            'id': f'custom_objective_{int(time.time())}',
-            'type': 'custom',
-            'priority': 'high',
-            'description': f'Implement objective: {objective}',
-            'files_pattern': '**/*'
-        }]
+        return [
+            {
+                "id": f"custom_objective_{int(time.time())}",
+                "type": "custom",
+                "priority": "high",
+                "description": f"Implement objective: {objective}",
+                "files_pattern": "**/*",
+            }
+        ]
 
     def save_tasks(self, tasks: List[Dict]) -> None:
         """Save tasks to JSON file"""
         task_data = {
-            'created_at': datetime.now().isoformat(),
-            'total_tasks': len(tasks),
-            'tasks': tasks
+            "created_at": datetime.now().isoformat(),
+            "total_tasks": len(tasks),
+            "tasks": tasks,
         }
 
-        with open(self.tasks_file, 'w') as f:
+        with open(self.tasks_file, "w") as f:
             json.dump(task_data, f, indent=2)
 
         print(f"Saved {len(tasks)} tasks to {self.tasks_file}")
@@ -251,14 +275,11 @@ Focus on creating tasks that directly address the stated objective, not generic 
         """
 
         # Run OpenCode
-        cmd = ['opencode', 'run', prompt]
+        cmd = ["opencode", "run", prompt]
 
-        with open(log_file, 'w') as log:
+        with open(log_file, "w") as log:
             process = subprocess.Popen(
-                cmd,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                cwd=str(self.project_dir)
+                cmd, stdout=log, stderr=subprocess.STDOUT, cwd=str(self.project_dir)
             )
 
         print(f"Started agent for task {task['id']} (PID: {process.pid})")
@@ -303,11 +324,11 @@ Focus on the specific objective, not generic improvements.
             print("Calling OpenCode for task generation...")
             # Run OpenCode and wait for response (same as agents but synchronous)
             result = subprocess.run(
-                ['opencode', 'run', prompt],
+                ["opencode", "run", prompt],
                 capture_output=True,
                 text=True,
                 timeout=60,  # Increase timeout for task generation
-                cwd=str(self.project_dir)
+                cwd=str(self.project_dir),
             )
 
             print(f"OpenCode returned with code: {result.returncode}")
@@ -316,17 +337,17 @@ Focus on the specific objective, not generic improvements.
                 print("OpenCode response received, parsing tasks...")
                 # Parse the structured response
                 tasks = []
-                lines = result.stdout.strip().split('\n')
+                lines = result.stdout.strip().split("\n")
                 timestamp = int(time.time())
 
                 print(f"Analyzing {len(lines)} lines from OpenCode response")
 
                 for i, line in enumerate(lines):
-                    if line.strip().startswith('TASK:'):
+                    if line.strip().startswith("TASK:"):
                         print(f"Found task line {i}: {line}")
                         try:
                             # Parse: TASK: type | priority | description | file_pattern
-                            parts = line.replace('TASK:', '').strip().split(' | ')
+                            parts = line.replace("TASK:", "").strip().split(" | ")
                             if len(parts) >= 4:
                                 task_type = parts[0].strip()
                                 priority = parts[1].strip()
@@ -334,22 +355,28 @@ Focus on the specific objective, not generic improvements.
                                 files_pattern = parts[3].strip()
 
                                 task = {
-                                    'id': f'{task_type}_{timestamp}_{len(tasks)}',
-                                    'type': task_type,
-                                    'priority': priority,
-                                    'description': description,
-                                    'files_pattern': files_pattern
+                                    "id": f"{task_type}_{timestamp}_{len(tasks)}",
+                                    "type": task_type,
+                                    "priority": priority,
+                                    "description": description,
+                                    "files_pattern": files_pattern,
                                 }
                                 tasks.append(task)
                                 print(f"  Created task: {task['id']}")
                             else:
-                                print(f"  Warning: Task line has {len(parts)} parts, expected 4+")
+                                print(
+                                    f"  Warning: Task line has {len(parts)} parts, expected 4+"
+                                )
                         except Exception as parse_error:
-                            print(f"  Warning: Could not parse task line: {parse_error}")
+                            print(
+                                f"  Warning: Could not parse task line: {parse_error}"
+                            )
                             continue
 
                 if tasks:
-                    print(f"Successfully generated {len(tasks)} tasks using OpenCode analysis")
+                    print(
+                        f"Successfully generated {len(tasks)} tasks using OpenCode analysis"
+                    )
                     return tasks
                 else:
                     print("Warning: No valid tasks found in OpenCode response")
@@ -357,7 +384,9 @@ Focus on the specific objective, not generic improvements.
                     print(result.stdout)
 
             else:
-                print(f"Warning: OpenCode task generation failed (exit {result.returncode})")
+                print(
+                    f"Warning: OpenCode task generation failed (exit {result.returncode})"
+                )
                 if result.stderr:
                     print(f"Error output: {result.stderr}")
 
@@ -374,13 +403,15 @@ Focus on the specific objective, not generic improvements.
         timestamp = int(time.time())
 
         # Create one main task that directly addresses the objective
-        return [{
-            'id': f'main_objective_{timestamp}',
-            'type': 'feature',
-            'priority': 'high',
-            'description': f'Implement: {objective}',
-            'files_pattern': '**/*'
-        }]
+        return [
+            {
+                "id": f"main_objective_{timestamp}",
+                "type": "feature",
+                "priority": "high",
+                "description": f"Implement: {objective}",
+                "files_pattern": "**/*",
+            }
+        ]
 
     def delegate(self, objective: str, max_concurrent: int = 4) -> None:
         """Main delegation function"""
@@ -391,8 +422,8 @@ Focus on the specific objective, not generic improvements.
         self.save_tasks(tasks)
 
         # Sort by priority
-        priority_order = {'high': 0, 'medium': 1, 'low': 2}
-        tasks.sort(key=lambda x: priority_order.get(x['priority'], 3))
+        priority_order = {"high": 0, "medium": 1, "low": 2}
+        tasks.sort(key=lambda x: priority_order.get(x["priority"], 3))
 
         # Run tasks
         processes = []
@@ -420,16 +451,23 @@ def main():
     """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='OpenCode Agent Task Delegator')
-    parser.add_argument('objective', nargs='?',
-                       default='make the application production ready',
-                       help='Main objective for the agents')
-    parser.add_argument('--project', '-p', default='.',
-                       help='Project directory path')
-    parser.add_argument('--max-concurrent', '-m', type=int, default=4,
-                       help='Maximum concurrent agents')
-    parser.add_argument('--analyze-only', '-a', action='store_true',
-                       help='Only analyze and generate tasks, don\'t run')
+    parser = argparse.ArgumentParser(description="OpenCode Agent Task Delegator")
+    parser.add_argument(
+        "objective",
+        nargs="?",
+        default="make the application production ready",
+        help="Main objective for the agents",
+    )
+    parser.add_argument("--project", "-p", default=".", help="Project directory path")
+    parser.add_argument(
+        "--max-concurrent", "-m", type=int, default=4, help="Maximum concurrent agents"
+    )
+    parser.add_argument(
+        "--analyze-only",
+        "-a",
+        action="store_true",
+        help="Only analyze and generate tasks, don't run",
+    )
 
     args = parser.parse_args()
 
@@ -448,5 +486,5 @@ def main():
         delegator.delegate(args.objective, args.max_concurrent)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

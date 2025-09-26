@@ -4,193 +4,133 @@
  * NPM executable wrapper for the automation system
  */
 
-const { spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+const os = require("os");
 
-// Colors for console output
+// Simple structured logger for CLI
+class StructuredLogger {
+  constructor(name = "opencode-cli") {
+    this.name = name;
+    this.levels = {
+      DEBUG: 0,
+      INFO: 1,
+      WARN: 2,
+      ERROR: 3,
+    };
+    this.currentLevel = process.env.LOG_LEVEL
+      ? this.levels[process.env.LOG_LEVEL.toUpperCase()]
+      : this.levels.INFO;
+  }
+
+  _log(level, message, extra = {}) {
+    if (this.levels[level] < this.currentLevel) return;
+
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      service: this.name,
+      environment: process.env.NODE_ENV || "development",
+      message,
+      ...extra,
+    };
+
+    // Console output with colors for CLI
+    const colors = {
+      DEBUG: "\x1b[36m", // cyan
+      INFO: "\x1b[32m", // green
+      WARN: "\x1b[33m", // yellow
+      ERROR: "\x1b[31m", // red
+    };
+    const reset = "\x1b[0m";
+
+    console.log(`${colors[level]}${level}${reset}: ${message}`);
+
+    // Also write to file if in production or if log file exists
+    try {
+      const logDir = path.join(process.cwd(), ".claude", "logs");
+      if (fs.existsSync(logDir)) {
+        const logFile = path.join(logDir, "cli.log");
+        fs.appendFileSync(logFile, JSON.stringify(logEntry) + "\n");
+      }
+    } catch (e) {
+      // Ignore file logging errors in CLI
+    }
+  }
+
+  debug(message, extra = {}) {
+    this._log("DEBUG", message, extra);
+  }
+  info(message, extra = {}) {
+    this._log("INFO", message, extra);
+  }
+  warn(message, extra = {}) {
+    this._log("WARN", message, extra);
+  }
+  error(message, extra = {}) {
+    this._log("ERROR", message, extra);
+  }
+}
+
+const logger = new StructuredLogger();
+
+// Colors for console output (keeping for backward compatibility)
 const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m'
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
 };
 
 // Get command line arguments
 const args = process.argv.slice(2);
-const command = args[0] || 'help';
+const command = args[0] || "help";
 
 // Paths
 const projectDir = process.cwd();
-const claudeDir = path.join(projectDir, '.claude');
-const installDir = path.join(__dirname, '..');
+const claudeDir = path.join(projectDir, ".claude");
+const installDir = path.join(__dirname, "..");
 
 // Ensure .claude directory exists
 if (!fs.existsSync(claudeDir)) {
-  console.log(`${colors.yellow}Setting up OpenCode agents in ${projectDir}...${colors.reset}`);
-  fs.mkdirSync(claudeDir, { recursive: true });
-  fs.mkdirSync(path.join(claudeDir, 'logs'), { recursive: true });
-  fs.mkdirSync(path.join(claudeDir, 'tasks'), { recursive: true });
-
-  // Copy templates
-  const templatesDir = path.join(installDir, 'templates');
-  const scriptsDir = path.join(installDir, 'scripts');
-
+  logger.info(`Setting up OpenCode agents in ${projectDir}...`);
   try {
-    // Copy template files
-    fs.copyFileSync(
-      path.join(templatesDir, 'agentsync.md'),
-      path.join(claudeDir, 'agentsync.md')
-    );
-    fs.copyFileSync(
-      path.join(templatesDir, 'tasks.json'),
-      path.join(claudeDir, 'tasks.json')
-    );
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.mkdirSync(path.join(claudeDir, "logs"), { recursive: true });
+    fs.mkdirSync(path.join(claudeDir, "tasks"), { recursive: true });
 
-    // Copy scripts
-    fs.copyFileSync(
-      path.join(scriptsDir, 'run_agents.sh'),
-      path.join(claudeDir, 'run_agents.sh')
-    );
-    fs.copyFileSync(
-      path.join(scriptsDir, 'delegate.py'),
-      path.join(claudeDir, 'delegate.py')
-    );
+    // Copy templates
+    const templatesDir = path.join(installDir, "templates");
+    const scriptsDir = path.join(installDir, "scripts");
 
-    // Make scripts executable
-    fs.chmodSync(path.join(claudeDir, 'run_agents.sh'), '755');
-    fs.chmodSync(path.join(claudeDir, 'delegate.py'), '755');
+    try {
+      // Copy template files
+      fs.copyFileSync(
+        path.join(templatesDir, "agentsync.md"),
+        path.join(claudeDir, "agentsync.md"),
+      );
+      fs.copyFileSync(
+        path.join(templatesDir, "tasks.json"),
+        path.join(claudeDir, "tasks.json"),
+      );
+      fs.copyFileSync(
+        path.join(templatesDir, "CLAUDE.md"),
+        path.join(claudeDir, "CLAUDE.md"),
+      );
 
-    console.log(`${colors.green}✅ Setup complete!${colors.reset}`);
-  } catch (err) {
-    console.error(`${colors.red}Setup failed: ${err.message}${colors.reset}`);
+      logger.info("✅ Setup complete!");
+    } catch (templateError) {
+      logger.error("Failed to copy template files", {
+        error: templateError.message,
+      });
+    }
+  } catch (setupError) {
+    logger.error("Failed to setup OpenCode agents", {
+      error: setupError.message,
+    });
     process.exit(1);
   }
-}
-
-// Command handlers
-const commands = {
-  start: () => {
-    console.log(`${colors.green}Starting OpenCode agents...${colors.reset}`);
-    const child = spawn('bash', [path.join(claudeDir, 'run_agents.sh'), 'start'], {
-      stdio: 'inherit',
-      cwd: projectDir
-    });
-    child.on('exit', (code) => {
-      process.exit(code);
-    });
-  },
-
-  stop: () => {
-    console.log(`${colors.yellow}Stopping all agents...${colors.reset}`);
-    spawn('pkill', ['-f', 'opencode run'], { stdio: 'inherit' });
-    console.log(`${colors.green}Agents stopped${colors.reset}`);
-  },
-
-  status: () => {
-    console.log(`${colors.blue}Agent Status:${colors.reset}`);
-    const ps = spawn('ps', ['aux'], { stdio: 'pipe' });
-    const grep = spawn('grep', ['opencode run'], { stdio: ['pipe', 'inherit', 'inherit'] });
-    const grepv = spawn('grep', ['-v', 'grep'], { stdio: ['pipe', 'inherit', 'inherit'] });
-
-    ps.stdout.pipe(grep.stdin);
-    grep.stdout.pipe(grepv.stdin);
-
-    grepv.on('exit', (code) => {
-      if (code !== 0) {
-        console.log('No agents currently running');
-      }
-    });
-  },
-
-  delegate: () => {
-    const objective = args.slice(1).join(' ') || 'make the application production ready';
-    console.log(`${colors.green}Delegating: ${objective}${colors.reset}`);
-
-    const child = spawn('python3', [
-      path.join(claudeDir, 'delegate.py'),
-      objective
-    ], {
-      stdio: 'inherit',
-      cwd: projectDir
-    });
-
-    child.on('exit', (code) => {
-      process.exit(code);
-    });
-  },
-
-  logs: () => {
-    const logDir = path.join(claudeDir, 'logs');
-    const logFiles = fs.readdirSync(logDir)
-      .filter(f => f.endsWith('.log'))
-      .map(f => path.join(logDir, f));
-
-    if (logFiles.length === 0) {
-      console.log('No log files found');
-      return;
-    }
-
-    console.log(`${colors.blue}Tailing logs (Ctrl+C to stop)...${colors.reset}`);
-    const tail = spawn('tail', ['-f', ...logFiles], {
-      stdio: 'inherit'
-    });
-
-    process.on('SIGINT', () => {
-      tail.kill();
-      process.exit(0);
-    });
-  },
-
-  test: () => {
-    console.log(`${colors.blue}Testing OpenCode...${colors.reset}`);
-    const child = spawn('opencode', ['run', 'Write a hello world Python script'], {
-      stdio: 'inherit'
-    });
-    child.on('exit', (code) => {
-      if (code === 0) {
-        console.log(`${colors.green}✅ OpenCode is working!${colors.reset}`);
-      } else {
-        console.log(`${colors.red}❌ OpenCode test failed${colors.reset}`);
-      }
-    });
-  },
-
-  help: () => {
-    console.log(`
-${colors.blue}${colors.bright}OpenCode Agent Automation${colors.reset}
-
-${colors.green}Usage:${colors.reset}
-  opencode-agents <command> [options]
-
-${colors.green}Commands:${colors.reset}
-  start              Start all configured agents
-  stop               Stop all running agents
-  status             Show agent status
-  delegate [task]    Delegate task to agents (default: "make app production ready")
-  logs               Tail agent logs
-  test               Test OpenCode installation
-  help               Show this help message
-
-${colors.green}Examples:${colors.reset}
-  opencode-agents delegate "add comprehensive testing"
-  opencode-agents delegate "optimize performance"
-  opencode-agents delegate "add security features"
-
-${colors.blue}Project:${colors.reset} ${projectDir}
-${colors.blue}Config:${colors.reset}  ${claudeDir}/
-    `);
-  }
-};
-
-// Execute command
-if (commands[command]) {
-  commands[command]();
-} else {
-  console.error(`${colors.red}Unknown command: ${command}${colors.reset}`);
-  commands.help();
-  process.exit(1);
 }

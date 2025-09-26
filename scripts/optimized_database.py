@@ -14,9 +14,11 @@ import hashlib
 
 try:
     from logger import StructuredLogger
+
     logger = StructuredLogger(__name__)
 except ImportError:
     import logging
+
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
@@ -26,14 +28,16 @@ class OptimizedDatabase:
     Optimized database layer with indexing, caching, and query optimization
     """
 
-    def __init__(self, base_dir: Path, cache_ttl: int = 300, max_cache_size: int = 1000):
+    def __init__(
+        self, base_dir: Path, cache_ttl: int = 300, max_cache_size: int = 1000
+    ):
         self.base_dir = base_dir
         self.cache_ttl = cache_ttl
         self.max_cache_size = max_cache_size
 
         # File paths
-        self.tasks_file = base_dir / 'tasks.json'
-        self.status_file = base_dir / 'task_status.json'
+        self.tasks_file = base_dir / "tasks.json"
+        self.status_file = base_dir / "task_status.json"
 
         # Caching system
         self._data_cache: Dict[str, Dict] = {}  # file_key -> data
@@ -55,14 +59,14 @@ class OptimizedDatabase:
 
         # Statistics
         self.stats = {
-            'cache_hits': 0,
-            'cache_misses': 0,
-            'file_reads': 0,
-            'file_writes': 0,
-            'index_hits': 0,
-            'index_misses': 0,
-            'query_cache_hits': 0,
-            'query_cache_misses': 0
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "file_reads": 0,
+            "file_writes": 0,
+            "index_hits": 0,
+            "index_misses": 0,
+            "query_cache_hits": 0,
+            "query_cache_misses": 0,
         }
 
     def _get_file_key(self, file_path: Path) -> str:
@@ -81,16 +85,16 @@ class OptimizedDatabase:
 
         with self._cache_lock:
             if self._is_cache_valid(file_key):
-                self.stats['cache_hits'] += 1
+                self.stats["cache_hits"] += 1
                 return self._data_cache[file_key].copy()
 
         # Cache miss - load from file
-        self.stats['cache_misses'] += 1
-        self.stats['file_reads'] += 1
+        self.stats["cache_misses"] += 1
+        self.stats["file_reads"] += 1
 
         try:
             if file_path.exists():
-                with open(file_path, 'r') as f:
+                with open(file_path, "r") as f:
                     data = json.load(f)
 
                 with self._cache_lock:
@@ -99,8 +103,10 @@ class OptimizedDatabase:
 
                     # Maintain cache size limit
                     if len(self._data_cache) > self.max_cache_size:
-                        oldest_key = min(self._cache_timestamps.keys(),
-                                       key=lambda k: self._cache_timestamps[k])
+                        oldest_key = min(
+                            self._cache_timestamps.keys(),
+                            key=lambda k: self._cache_timestamps[k],
+                        )
                         del self._data_cache[oldest_key]
                         del self._cache_timestamps[oldest_key]
 
@@ -121,10 +127,10 @@ class OptimizedDatabase:
     def _write_data(self, file_path: Path, data: Dict):
         """Write data to file and update cache"""
         file_key = self._get_file_key(file_path)
-        self.stats['file_writes'] += 1
+        self.stats["file_writes"] += 1
 
         try:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 json.dump(data, f, indent=2)
 
             # Update cache
@@ -156,79 +162,79 @@ class OptimizedDatabase:
             return
 
         with self._index_lock:
-            if file_key == 'tasks.json' and 'tasks' in data:
-                self._build_task_indexes(data['tasks'])
-            elif file_key == 'task_status.json':
+            if file_key == "tasks.json" and "tasks" in data:
+                self._build_task_indexes(data["tasks"])
+            elif file_key == "task_status.json":
                 self._build_status_indexes(data)
 
     def _build_task_indexes(self, tasks: List[Dict]):
         """Build indexes for tasks data"""
         indexes = {
-            'by_id': {},
-            'by_type': {},
-            'by_status': {},
-            'by_priority': {},
-            'by_created_date': {},
-            'by_files_pattern': set()
+            "by_id": {},
+            "by_type": {},
+            "by_status": {},
+            "by_priority": {},
+            "by_created_date": {},
+            "by_files_pattern": set(),
         }
 
         for task in tasks:
-            task_id = task.get('id')
+            task_id = task.get("id")
             if not task_id:
                 continue
 
             # Primary index
-            indexes['by_id'][task_id] = task
+            indexes["by_id"][task_id] = task
 
             # Type index
-            task_type = task.get('type', 'general')
-            if task_type not in indexes['by_type']:
-                indexes['by_type'][task_type] = []
-            indexes['by_type'][task_type].append(task)
+            task_type = task.get("type", "general")
+            if task_type not in indexes["by_type"]:
+                indexes["by_type"][task_type] = []
+            indexes["by_type"][task_type].append(task)
 
             # Status index
-            status = task.get('status', 'pending')
-            if status not in indexes['by_status']:
-                indexes['by_status'][status] = []
-            indexes['by_status'][status].append(task)
+            status = task.get("status", "pending")
+            if status not in indexes["by_status"]:
+                indexes["by_status"][status] = []
+            indexes["by_status"][status].append(task)
 
             # Priority index
-            priority = task.get('priority', 'medium')
-            if priority not in indexes['by_priority']:
-                indexes['by_priority'][priority] = []
-            indexes['by_priority'][priority].append(task)
+            priority = task.get("priority", "medium")
+            if priority not in indexes["by_priority"]:
+                indexes["by_priority"][priority] = []
+            indexes["by_priority"][priority].append(task)
 
             # Files pattern index (for quick matching)
-            files_pattern = task.get('files_pattern', '**/*')
-            indexes['by_files_pattern'].add(files_pattern)
+            files_pattern = task.get("files_pattern", "**/*")
+            indexes["by_files_pattern"].add(files_pattern)
 
-        self._indexes['tasks.json'] = indexes
+        self._indexes["tasks.json"] = indexes
 
     def _build_status_indexes(self, status_data: Dict):
         """Build indexes for status data"""
         indexes = {
-            'by_task_id': {},
-            'running_tasks': [],
-            'completed_tasks': [],
-            'failed_tasks': []
+            "by_task_id": {},
+            "running_tasks": [],
+            "completed_tasks": [],
+            "failed_tasks": [],
         }
 
         # Index running tasks
-        for task_id, task_data in status_data.get('running_tasks', {}).items():
-            indexes['by_task_id'][task_id] = task_data
-            indexes['running_tasks'].append(task_data)
+        for task_id, task_data in status_data.get("running_tasks", {}).items():
+            indexes["by_task_id"][task_id] = task_data
+            indexes["running_tasks"].append(task_data)
 
         # Index completed tasks
-        for task_id, task_data in status_data.get('completed_tasks', {}).items():
-            indexes['by_task_id'][task_id] = task_data
-            indexes['completed_tasks'].append(task_data)
+        for task_id, task_data in status_data.get("completed_tasks", {}).items():
+            indexes["by_task_id"][task_id] = task_data
+            indexes["completed_tasks"].append(task_data)
 
         # Index failed tasks
-        for task_data in indexes['completed_tasks']:
-            if task_data.get('error'):
-                indexes['failed_tasks'].append(task_data)
+        for task_data in indexes["completed_tasks"]:
+            if task_data.get("error"):
+                indexes["failed_tasks"].append(task_data)
 
-        self._indexes['task_status.json'] = indexes
+        self._indexes["task_status.json"] = indexes
 
     def _get_query_cache_key(self, query_type: str, **params) -> str:
         """Generate cache key for query"""
@@ -241,9 +247,9 @@ class OptimizedDatabase:
             if cache_key in self._query_cache:
                 # Move to end (most recently used)
                 self._query_cache.move_to_end(cache_key)
-                self.stats['query_cache_hits'] += 1
+                self.stats["query_cache_hits"] += 1
                 return self._query_cache[cache_key]
-        self.stats['query_cache_misses'] += 1
+        self.stats["query_cache_misses"] += 1
         return None
 
     def _cache_query_result(self, cache_key: str, result: Any):
@@ -258,9 +264,11 @@ class OptimizedDatabase:
 
     # Public API methods
 
-    def get_tasks(self, filters: Optional[Dict] = None, use_cache: bool = True) -> List[Dict]:
+    def get_tasks(
+        self, filters: Optional[Dict] = None, use_cache: bool = True
+    ) -> List[Dict]:
         """Get tasks with optional filtering and caching"""
-        cache_key = self._get_query_cache_key('get_tasks', filters=filters or {})
+        cache_key = self._get_query_cache_key("get_tasks", filters=filters or {})
 
         if use_cache:
             cached_result = self._get_cached_query_result(cache_key)
@@ -268,13 +276,13 @@ class OptimizedDatabase:
                 return cached_result.copy()
 
         # Ensure indexes are built
-        self._ensure_indexes('tasks.json')
+        self._ensure_indexes("tasks.json")
 
         data = self._get_cached_data(self.tasks_file)
-        if not data or 'tasks' not in data:
+        if not data or "tasks" not in data:
             return []
 
-        tasks = data['tasks']
+        tasks = data["tasks"]
 
         # Apply filters using indexes when possible
         if filters:
@@ -291,33 +299,37 @@ class OptimizedDatabase:
 
         # Use indexes for efficient filtering
         with self._index_lock:
-            indexes = self._indexes.get('tasks.json', {})
+            indexes = self._indexes.get("tasks.json", {})
 
-            if 'type' in filters and 'by_type' in indexes:
+            if "type" in filters and "by_type" in indexes:
                 type_tasks = set()
-                for task in indexes['by_type'].get(filters['type'], []):
-                    type_tasks.add(task['id'])
-                filtered_tasks = [t for t in filtered_tasks if t['id'] in type_tasks]
+                for task in indexes["by_type"].get(filters["type"], []):
+                    type_tasks.add(task["id"])
+                filtered_tasks = [t for t in filtered_tasks if t["id"] in type_tasks]
 
-            if 'status' in filters and 'by_status' in indexes:
+            if "status" in filters and "by_status" in indexes:
                 status_tasks = set()
-                for task in indexes['by_status'].get(filters['status'], []):
-                    status_tasks.add(task['id'])
-                filtered_tasks = [t for t in filtered_tasks if t['id'] in status_tasks]
+                for task in indexes["by_status"].get(filters["status"], []):
+                    status_tasks.add(task["id"])
+                filtered_tasks = [t for t in filtered_tasks if t["id"] in status_tasks]
 
-            if 'priority' in filters and 'by_priority' in indexes:
+            if "priority" in filters and "by_priority" in indexes:
                 priority_tasks = set()
-                for task in indexes['by_priority'].get(filters['priority'], []):
-                    priority_tasks.add(task['id'])
-                filtered_tasks = [t for t in filtered_tasks if t['id'] in priority_tasks]
+                for task in indexes["by_priority"].get(filters["priority"], []):
+                    priority_tasks.add(task["id"])
+                filtered_tasks = [
+                    t for t in filtered_tasks if t["id"] in priority_tasks
+                ]
 
         # Apply remaining filters (non-indexed)
         for key, value in filters.items():
-            if key not in ['type', 'status', 'priority']:  # Already handled above
-                if key == 'id':
-                    filtered_tasks = [t for t in filtered_tasks if t.get('id') == value]
-                elif key == 'files_pattern':
-                    filtered_tasks = [t for t in filtered_tasks if value in t.get('files_pattern', '')]
+            if key not in ["type", "status", "priority"]:  # Already handled above
+                if key == "id":
+                    filtered_tasks = [t for t in filtered_tasks if t.get("id") == value]
+                elif key == "files_pattern":
+                    filtered_tasks = [
+                        t for t in filtered_tasks if value in t.get("files_pattern", "")
+                    ]
                 else:
                     filtered_tasks = [t for t in filtered_tasks if t.get(key) == value]
 
@@ -325,36 +337,36 @@ class OptimizedDatabase:
 
     def get_task_by_id(self, task_id: str) -> Optional[Dict]:
         """Get a single task by ID using index"""
-        self._ensure_indexes('tasks.json')
+        self._ensure_indexes("tasks.json")
 
         with self._index_lock:
-            indexes = self._indexes.get('tasks.json', {})
-            if 'by_id' in indexes:
-                self.stats['index_hits'] += 1
-                return indexes['by_id'].get(task_id)
+            indexes = self._indexes.get("tasks.json", {})
+            if "by_id" in indexes:
+                self.stats["index_hits"] += 1
+                return indexes["by_id"].get(task_id)
             else:
-                self.stats['index_misses'] += 1
+                self.stats["index_misses"] += 1
 
         # Fallback to full scan
         tasks = self.get_tasks()
-        return next((t for t in tasks if t.get('id') == task_id), None)
+        return next((t for t in tasks if t.get("id") == task_id), None)
 
     def get_task_status(self, task_id: str) -> Optional[Dict]:
         """Get task status using index"""
-        self._ensure_indexes('task_status.json')
+        self._ensure_indexes("task_status.json")
 
         with self._index_lock:
-            indexes = self._indexes.get('task_status.json', {})
-            if 'by_task_id' in indexes:
-                self.stats['index_hits'] += 1
-                return indexes['by_task_id'].get(task_id)
+            indexes = self._indexes.get("task_status.json", {})
+            if "by_task_id" in indexes:
+                self.stats["index_hits"] += 1
+                return indexes["by_task_id"].get(task_id)
             else:
-                self.stats['index_misses'] += 1
+                self.stats["index_misses"] += 1
 
         # Fallback
         status_data = self._get_cached_data(self.status_file)
         if status_data:
-            for section in ['running_tasks', 'completed_tasks']:
+            for section in ["running_tasks", "completed_tasks"]:
                 if section in status_data and task_id in status_data[section]:
                     return status_data[section][task_id]
 
@@ -362,12 +374,12 @@ class OptimizedDatabase:
 
     def save_tasks(self, tasks: List[Dict]):
         """Save tasks with batching and cache invalidation"""
-        data = {'tasks': tasks, 'updated_at': time.time()}
+        data = {"tasks": tasks, "updated_at": time.time()}
         self._write_data(self.tasks_file, data)
 
     def save_task_status(self, status_data: Dict):
         """Save task status with batching"""
-        status_data['updated_at'] = time.time()
+        status_data["updated_at"] = time.time()
         self._write_data(self.status_file, status_data)
 
     def update_task(self, task_id: str, updates: Dict):
@@ -376,7 +388,7 @@ class OptimizedDatabase:
         task_found = False
 
         for task in tasks:
-            if task.get('id') == task_id:
+            if task.get("id") == task_id:
                 task.update(updates)
                 task_found = True
                 break
@@ -393,7 +405,7 @@ class OptimizedDatabase:
             return
 
         tasks = self.get_tasks(use_cache=False)
-        task_map = {t['id']: t for t in tasks if 'id' in t}
+        task_map = {t["id"]: t for t in tasks if "id" in t}
 
         for task_id, update_data in updates:
             if task_id in task_map:
@@ -404,28 +416,33 @@ class OptimizedDatabase:
     def get_statistics_summary(self) -> Dict:
         """Get database performance statistics"""
         return {
-            'cache_performance': {
-                'hits': self.stats['cache_hits'],
-                'misses': self.stats['cache_misses'],
-                'hit_ratio': self.stats['cache_hits'] / max(1, self.stats['cache_hits'] + self.stats['cache_misses'])
+            "cache_performance": {
+                "hits": self.stats["cache_hits"],
+                "misses": self.stats["cache_misses"],
+                "hit_ratio": self.stats["cache_hits"]
+                / max(1, self.stats["cache_hits"] + self.stats["cache_misses"]),
             },
-            'index_performance': {
-                'hits': self.stats['index_hits'],
-                'misses': self.stats['index_misses'],
-                'hit_ratio': self.stats['index_hits'] / max(1, self.stats['index_hits'] + self.stats['index_misses'])
+            "index_performance": {
+                "hits": self.stats["index_hits"],
+                "misses": self.stats["index_misses"],
+                "hit_ratio": self.stats["index_hits"]
+                / max(1, self.stats["index_hits"] + self.stats["index_misses"]),
             },
-            'query_cache_performance': {
-                'hits': self.stats['query_cache_hits'],
-                'misses': self.stats['query_cache_misses'],
-                'hit_ratio': self.stats['query_cache_hits'] / max(1, self.stats['query_cache_hits'] + self.stats['query_cache_misses'])
+            "query_cache_performance": {
+                "hits": self.stats["query_cache_hits"],
+                "misses": self.stats["query_cache_misses"],
+                "hit_ratio": self.stats["query_cache_hits"]
+                / max(
+                    1, self.stats["query_cache_hits"] + self.stats["query_cache_misses"]
+                ),
             },
-            'file_operations': {
-                'reads': self.stats['file_reads'],
-                'writes': self.stats['file_writes']
+            "file_operations": {
+                "reads": self.stats["file_reads"],
+                "writes": self.stats["file_writes"],
             },
-            'cache_size': len(self._data_cache),
-            'query_cache_size': len(self._query_cache),
-            'index_count': len(self._indexes)
+            "cache_size": len(self._data_cache),
+            "query_cache_size": len(self._query_cache),
+            "index_count": len(self._indexes),
         }
 
     def clear_caches(self):

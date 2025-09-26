@@ -14,6 +14,7 @@ from pathlib import Path
 import sys
 import os
 
+
 def profile_function(func, *args, **kwargs):
     """Profile a function and return stats"""
     profiler = cProfile.Profile()
@@ -24,17 +25,18 @@ def profile_function(func, *args, **kwargs):
     # Get stats
     stream = io.StringIO()
     stats = pstats.Stats(profiler, stream=stream)
-    stats.sort_stats('cumulative')
+    stats.sort_stats("cumulative")
     stats.print_stats(20)
 
     return result, stream.getvalue()
+
 
 def profile_dashboard_server():
     """Profile dashboard server performance"""
     print("Profiling dashboard server...")
 
     try:
-        sys.path.append('scripts')
+        sys.path.append("scripts")
         from dashboard_server import DashboardServer
 
         server = DashboardServer()
@@ -58,12 +60,13 @@ def profile_dashboard_server():
     except Exception as e:
         print(f"Error profiling dashboard: {e}")
 
+
 def profile_task_manager():
     """Profile task manager performance"""
     print("Profiling task manager...")
 
     try:
-        sys.path.append('scripts')
+        sys.path.append("scripts")
         from task_manager import TaskManager
 
         manager = TaskManager()
@@ -82,41 +85,42 @@ def profile_task_manager():
     except Exception as e:
         print(f"Error profiling task manager: {e}")
 
+
 def identify_bottlenecks():
     """Identify main performance bottlenecks"""
     print("\n=== PERFORMANCE BOTTLENECKS IDENTIFIED ===")
 
     bottlenecks = [
         {
-            'component': 'Dashboard Server - Process Detection',
-            'issue': 'Full process scan every 30 seconds with regex matching on all processes',
-            'impact': 'High CPU usage during scans',
-            'solution': 'Implement incremental scanning and better caching'
+            "component": "Dashboard Server - Process Detection",
+            "issue": "Full process scan every 30 seconds with regex matching on all processes",
+            "impact": "High CPU usage during scans",
+            "solution": "Implement incremental scanning and better caching",
         },
         {
-            'component': 'Dashboard Server - File Monitoring',
-            'issue': 'Reading entire log files on every change',
-            'impact': 'I/O bottleneck with large log files',
-            'solution': 'Use file position tracking and incremental reading'
+            "component": "Dashboard Server - File Monitoring",
+            "issue": "Reading entire log files on every change",
+            "impact": "I/O bottleneck with large log files",
+            "solution": "Use file position tracking and incremental reading",
         },
         {
-            'component': 'Task Manager - Progress Tracking',
-            'issue': 'Reading entire log files every 10 seconds per task',
-            'impact': 'Multiple file I/O operations',
-            'solution': 'Cache file positions and use inotify for changes'
+            "component": "Task Manager - Progress Tracking",
+            "issue": "Reading entire log files every 10 seconds per task",
+            "impact": "Multiple file I/O operations",
+            "solution": "Cache file positions and use inotify for changes",
         },
         {
-            'component': 'WebSocket Broadcasting',
-            'issue': 'JSON serialization for every message to all clients',
-            'impact': 'CPU usage with many clients',
-            'solution': 'Cache serialized messages and use binary protocols'
+            "component": "WebSocket Broadcasting",
+            "issue": "JSON serialization for every message to all clients",
+            "impact": "CPU usage with many clients",
+            "solution": "Cache serialized messages and use binary protocols",
         },
         {
-            'component': 'System Resource Monitoring',
-            'issue': 'Multiple psutil calls every 5 seconds',
-            'impact': 'System call overhead',
-            'solution': 'Batch system calls and cache results'
-        }
+            "component": "System Resource Monitoring",
+            "issue": "Multiple psutil calls every 5 seconds",
+            "impact": "System call overhead",
+            "solution": "Batch system calls and cache results",
+        },
     ]
 
     for i, bottleneck in enumerate(bottlenecks, 1):
@@ -124,6 +128,7 @@ def identify_bottlenecks():
         print(f"   Issue: {bottleneck['issue']}")
         print(f"   Impact: {bottleneck['impact']}")
         print(f"   Solution: {bottleneck['solution']}")
+
 
 def main():
     print("OpenCode Agent Performance Analysis")
@@ -143,5 +148,6 @@ def main():
 
     print(f"\nReports saved to: {output_dir}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

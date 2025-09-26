@@ -1,0 +1,63 @@
+Performance Profile Report - 2025-09-26 10:22:50.408079
+============================================================
+
+Top 50 functions by cumulative time:
+----------------------------------------
+         191 function calls (185 primitive calls) in 0.001 seconds
+
+   Ordered by: cumulative time
+   List reduced from 81 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/threading.py:1000(_bootstrap)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/threading.py:1027(_bootstrap_inner)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/threading.py:983(run)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:205(run_task_manager)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:189(__init__)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:717(mkdir)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.mkdir}
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:166(__fspath__)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:227(__str__)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:148(__truediv__)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_abc.py:130(with_segments)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:289(drive)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:498(__init__)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:117(__init__)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:277(_raw_path)
+        1    0.000    0.000    0.000    0.000 {built-in method _thread.start_joinable_thread}
+      2/1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:65(start_system_monitoring)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:869(__init__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:620(set)
+        2    0.000    0.000    0.000    0.000 <frozen posixpath>:72(join)
+      2/1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:955(start)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:505(__new__)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_abc.py:460(is_dir)
+      2/1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:641(wait)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:257(_parse_path)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:428(notify_all)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:510(stat)
+        1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:50(stop_profiling)
+       16    0.000    0.000    0.000    0.000 {built-in method builtins.isinstance}
+      2/1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:327(wait)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:237(_format_parsed_parts)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.stat}
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:398(notify)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:592(__init__)
+       12    0.000    0.000    0.000    0.000 {built-in method posix.fspath}
+      6/4    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.lock' objects}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:281(__init__)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:303(__enter__)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:318(_is_owned)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:306(__exit__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/_weakrefset.py:85(add)
+        2    0.000    0.000    0.000    0.000 <frozen posixpath>:42(_get_sep)
+        2    0.000    0.000    0.000    0.000 <frozen posixpath>:131(splitdrive)
+        5    0.000    0.000    0.000    0.000 {method 'startswith' of 'str' objects}
+        5    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x7f075b2eb2e0}
+        5    0.000    0.000    0.000    0.000 {built-in method builtins.len}
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:1020(_set_ident)
+        2    0.000    0.000    0.000    0.000 {method 'release' of '_thread.lock' objects}
+        5    0.000    0.000    0.000    0.000 {method 'append' of 'list' objects}
+
+

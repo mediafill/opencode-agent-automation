@@ -1,11 +1,11 @@
-const fs = require('fs').promises;
-const path = require('path');
+const fs = require("fs").promises;
+const path = require("path");
 
 global.testTimeout = 30000;
 
 beforeAll(async () => {
   // Set up test directories and cleanup
-  const testProjectDir = path.join(__dirname, 'fixtures', 'test-project');
+  const testProjectDir = path.join(__dirname, "fixtures", "test-project");
   await fs.mkdir(testProjectDir, { recursive: true });
 
   // Store for cleanup

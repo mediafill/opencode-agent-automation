@@ -1,0 +1,16 @@
+Performance Summary Report - 2025-09-26 10:24:03.596294
+============================================================
+
+Monitoring duration: 21.0 seconds
+Samples collected: 21
+
+System Resource Usage:
+-------------------------
+Average CPU usage: 8.6%
+Peak CPU usage: 17.2%
+Average memory usage: 74.6%
+Peak memory usage: 75.2%
+
+Reports generated:
+- Profile report: /home/ara/Documents/code/opencode-agent-automation/performance_reports/profile_report_20250926_102403.txt
+- System report: /home/ara/Documents/code/opencode-agent-automation/performance_reports/system_report_20250926_102403.csv

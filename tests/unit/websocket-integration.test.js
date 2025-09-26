@@ -6,10 +6,10 @@ const {
   resetGlobalState,
   websocket,
   resourceData,
-  charts
-} = require('../dashboard-functions');
+  charts,
+} = require("../dashboard-functions");
 
-describe('WebSocket Integration Tests', () => {
+describe("WebSocket Integration Tests", () => {
   let mockWebSocket;
 
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe('WebSocket Integration Tests', () => {
       onopen: null,
       onclose: null,
       onmessage: null,
-      onerror: null
+      onerror: null,
     };
 
     global.WebSocket = jest.fn(() => mockWebSocket);
@@ -40,42 +40,42 @@ describe('WebSocket Integration Tests', () => {
     jest.clearAllMocks();
   });
 
-  describe('initializeWebSocket', () => {
-    test('creates WebSocket with correct URL', () => {
-      Object.defineProperty(window, 'location', {
-        value: { protocol: 'http:' },
-        writable: true
+  describe("initializeWebSocket", () => {
+    test("creates WebSocket with correct URL", () => {
+      Object.defineProperty(window, "location", {
+        value: { protocol: "http:" },
+        writable: true,
       });
 
       initializeWebSocket();
 
-      expect(global.WebSocket).toHaveBeenCalledWith('ws://localhost:8080/ws');
+      expect(global.WebSocket).toHaveBeenCalledWith("ws://localhost:8080/ws");
     });
 
-    test('uses secure WebSocket for HTTPS', () => {
-      Object.defineProperty(window, 'location', {
-        value: { protocol: 'https:' },
-        writable: true
+    test("uses secure WebSocket for HTTPS", () => {
+      Object.defineProperty(window, "location", {
+        value: { protocol: "https:" },
+        writable: true,
       });
 
       initializeWebSocket();
 
-      expect(global.WebSocket).toHaveBeenCalledWith('wss://localhost:8080/ws');
+      expect(global.WebSocket).toHaveBeenCalledWith("wss://localhost:8080/ws");
     });
 
-    test('sets up WebSocket event handlers', () => {
+    test("sets up WebSocket event handlers", () => {
       initializeWebSocket();
 
-      expect(typeof mockWebSocket.onopen).toBe('function');
-      expect(typeof mockWebSocket.onclose).toBe('function');
-      expect(typeof mockWebSocket.onmessage).toBe('function');
-      expect(typeof mockWebSocket.onerror).toBe('function');
+      expect(typeof mockWebSocket.onopen).toBe("function");
+      expect(typeof mockWebSocket.onclose).toBe("function");
+      expect(typeof mockWebSocket.onmessage).toBe("function");
+      expect(typeof mockWebSocket.onerror).toBe("function");
     });
 
-    test('sends initial status request on open', () => {
+    test("sends initial status request on open", () => {
       // Mock WebSocket to capture the instance
       let capturedWebSocket;
-      global.WebSocket = jest.fn().mockImplementation(function(url) {
+      global.WebSocket = jest.fn().mockImplementation(function (url) {
         capturedWebSocket = this;
         this.url = url;
         this.readyState = WebSocket.CONNECTING;
@@ -97,39 +97,39 @@ describe('WebSocket Integration Tests', () => {
       initializeWebSocket();
 
       // Wait for async connection
-      return new Promise(resolve => {
+      return new Promise((resolve) => {
         setTimeout(() => {
           expect(capturedWebSocket.send).toHaveBeenCalledWith(
-            JSON.stringify({ type: 'request_status' })
+            JSON.stringify({ type: "request_status" }),
           );
           resolve();
         }, 10);
       });
     });
 
-    test('handles WebSocket errors gracefully', () => {
+    test("handles WebSocket errors gracefully", () => {
       global.WebSocket = jest.fn(() => {
-        throw new Error('Connection failed');
+        throw new Error("Connection failed");
       });
 
       expect(() => {
         initializeWebSocket();
       }).not.toThrow();
 
-      const statusElement = document.getElementById('connectionText');
-      expect(statusElement.textContent).toBe('Failed to Connect');
+      const statusElement = document.getElementById("connectionText");
+      expect(statusElement.textContent).toBe("Failed to Connect");
     });
 
-    test('processes WebSocket messages correctly', () => {
+    test("processes WebSocket messages correctly", () => {
       const mockMessage = {
         data: JSON.stringify({
-          type: 'log_entry',
+          type: "log_entry",
           log: {
             time: new Date(),
-            level: 'info',
-            message: 'Test message'
-          }
-        })
+            level: "info",
+            message: "Test message",
+          },
+        }),
       };
 
       initializeWebSocket();
@@ -139,51 +139,52 @@ describe('WebSocket Integration Tests', () => {
       expect(console.error).not.toHaveBeenCalled();
     });
 
-    test('handles malformed WebSocket messages', () => {
+    test("handles malformed WebSocket messages", () => {
       const mockMessage = {
-        data: 'invalid json'
+        data: "invalid json",
       };
 
       initializeWebSocket();
       mockWebSocket.onmessage(mockMessage);
 
       expect(console.error).toHaveBeenCalledWith(
-        'Error parsing WebSocket message:',
-        expect.any(Error)
+        "Error parsing WebSocket message:",
+        expect.any(Error),
       );
     });
   });
 
-  describe('refreshData', () => {
-    test('sends status request when WebSocket is open', () => {
+  describe("refreshData", () => {
+    test("sends status request when WebSocket is open", () => {
       // Mock global websocket variable
       global.websocket = {
         readyState: WebSocket.OPEN,
-        send: jest.fn()
+        send: jest.fn(),
       };
 
       refreshData();
 
       expect(global.websocket.send).toHaveBeenCalledWith(
-        JSON.stringify({ type: 'request_status' })
+        JSON.stringify({ type: "request_status" }),
       );
     });
 
-    test('loads demo data when WebSocket is not available', () => {
+    test("loads demo data when WebSocket is not available", () => {
       global.websocket = null;
 
-      const originalAgentsLength = require('../dashboard-functions').agents.length;
+      const originalAgentsLength = require("../dashboard-functions").agents
+        .length;
       refreshData();
 
       // Should load demo data (agents array should be populated)
-      const { agents } = require('../dashboard-functions');
+      const { agents } = require("../dashboard-functions");
       expect(agents.length).toBeGreaterThan(originalAgentsLength);
     });
 
-    test('loads demo data when WebSocket is not open', () => {
+    test("loads demo data when WebSocket is not open", () => {
       global.websocket = {
         readyState: WebSocket.CLOSED,
-        send: jest.fn()
+        send: jest.fn(),
       };
 
       refreshData();
@@ -193,7 +194,7 @@ describe('WebSocket Integration Tests', () => {
   });
 });
 
-describe('System Resource Monitoring Tests', () => {
+describe("System Resource Monitoring Tests", () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <div id="systemResources"></div>
@@ -203,15 +204,15 @@ describe('System Resource Monitoring Tests', () => {
     resourceData.length = 0;
 
     // Reset agents array
-    const { agents } = require('../dashboard-functions');
+    const { agents } = require("../dashboard-functions");
     agents.length = 0;
   });
 
-  describe('updateSystemResources', () => {
-    test('generates realistic resource usage values', () => {
+  describe("updateSystemResources", () => {
+    test("generates realistic resource usage values", () => {
       updateSystemResources();
 
-      const container = document.getElementById('systemResources');
+      const container = document.getElementById("systemResources");
       const cpuMatch = container.innerHTML.match(/CPU Usage.*?(\d+)%/);
       const memoryMatch = container.innerHTML.match(/Memory Usage.*?(\d+)%/);
       const diskMatch = container.innerHTML.match(/Disk Usage.*?(\d+)%/);
@@ -232,34 +233,34 @@ describe('System Resource Monitoring Tests', () => {
       expect(diskUsage).toBeLessThanOrEqual(35);
     });
 
-    test('displays active processes count correctly', () => {
-      const { agents } = require('../dashboard-functions');
+    test("displays active processes count correctly", () => {
+      const { agents } = require("../dashboard-functions");
       agents.push(
-        { id: '1', status: 'running' },
-        { id: '2', status: 'running' },
-        { id: '3', status: 'completed' }
+        { id: "1", status: "running" },
+        { id: "2", status: "running" },
+        { id: "3", status: "completed" },
       );
 
       updateSystemResources();
 
-      const container = document.getElementById('systemResources');
-      expect(container.innerHTML).toContain('Active Processes');
-      expect(container.innerHTML).toContain('2'); // Only running agents
+      const container = document.getElementById("systemResources");
+      expect(container.innerHTML).toContain("Active Processes");
+      expect(container.innerHTML).toContain("2"); // Only running agents
     });
 
-    test('maintains resource data history', () => {
+    test("maintains resource data history", () => {
       const initialLength = resourceData.length;
 
       updateSystemResources();
 
       expect(resourceData.length).toBe(initialLength + 1);
-      expect(resourceData[resourceData.length - 1]).toHaveProperty('time');
-      expect(resourceData[resourceData.length - 1]).toHaveProperty('cpu');
-      expect(resourceData[resourceData.length - 1]).toHaveProperty('memory');
-      expect(resourceData[resourceData.length - 1]).toHaveProperty('disk');
+      expect(resourceData[resourceData.length - 1]).toHaveProperty("time");
+      expect(resourceData[resourceData.length - 1]).toHaveProperty("cpu");
+      expect(resourceData[resourceData.length - 1]).toHaveProperty("memory");
+      expect(resourceData[resourceData.length - 1]).toHaveProperty("disk");
     });
 
-    test('limits resource data to 20 entries', () => {
+    test("limits resource data to 20 entries", () => {
       // Fill with more than 20 entries
       for (let i = 0; i < 25; i++) {
         updateSystemResources();
@@ -268,7 +269,7 @@ describe('System Resource Monitoring Tests', () => {
       expect(resourceData.length).toBe(20);
     });
 
-    test('resource data entries have valid values', () => {
+    test("resource data entries have valid values", () => {
       updateSystemResources();
 
       const latest = resourceData[resourceData.length - 1];
@@ -283,7 +284,7 @@ describe('System Resource Monitoring Tests', () => {
   });
 });
 
-describe('Chart Integration Tests', () => {
+describe("Chart Integration Tests", () => {
   let mockChart;
 
   beforeEach(() => {
@@ -295,58 +296,66 @@ describe('Chart Integration Tests', () => {
     mockChart = {
       data: {
         labels: [],
-        datasets: [{
-          data: [],
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102,126,234,0.1)'
-        }]
+        datasets: [
+          {
+            data: [],
+            borderColor: "#667eea",
+            backgroundColor: "rgba(102,126,234,0.1)",
+          },
+        ],
       },
       update: jest.fn(),
-      destroy: jest.fn()
+      destroy: jest.fn(),
     };
 
     global.Chart = jest.fn(() => mockChart);
-    Object.keys(charts).forEach(key => delete charts[key]);
+    Object.keys(charts).forEach((key) => delete charts[key]);
   });
 
-  describe('initializeCharts', () => {
-    test('creates resource chart when Chart.js is available', () => {
+  describe("initializeCharts", () => {
+    test("creates resource chart when Chart.js is available", () => {
       initializeCharts();
 
       expect(global.Chart).toHaveBeenCalledWith(
         expect.any(Object), // canvas context
         expect.objectContaining({
-          type: 'line',
+          type: "line",
           data: expect.objectContaining({
             labels: [],
             datasets: expect.arrayContaining([
               expect.objectContaining({
-                label: 'CPU %'
+                label: "CPU %",
               }),
               expect.objectContaining({
-                label: 'Memory %'
-              })
-            ])
-          })
-        })
+                label: "Memory %",
+              }),
+            ]),
+          }),
+        }),
       );
     });
 
-    test('creates task distribution chart when Chart.js is available', () => {
+    test("creates task distribution chart when Chart.js is available", () => {
       initializeCharts();
 
       expect(global.Chart).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({
-          type: 'doughnut',
+          type: "doughnut",
           data: expect.objectContaining({
-            labels: ['Security', 'Testing', 'Performance', 'Documentation', 'Refactoring']
-          })
-        })
+            labels: [
+              "Security",
+              "Testing",
+              "Performance",
+              "Documentation",
+              "Refactoring",
+            ],
+          }),
+        }),
       );
     });
 
-    test('handles missing Chart.js gracefully', () => {
+    test("handles missing Chart.js gracefully", () => {
       global.Chart = undefined;
 
       expect(() => {
@@ -354,15 +363,15 @@ describe('Chart Integration Tests', () => {
       }).not.toThrow();
     });
 
-    test('handles missing canvas elements gracefully', () => {
-      document.body.innerHTML = '';
+    test("handles missing canvas elements gracefully", () => {
+      document.body.innerHTML = "";
 
       expect(() => {
         initializeCharts();
       }).not.toThrow();
     });
 
-    test('stores chart references correctly', () => {
+    test("stores chart references correctly", () => {
       initializeCharts();
 
       expect(charts.resource).toBeDefined();
@@ -371,10 +380,10 @@ describe('Chart Integration Tests', () => {
   });
 });
 
-describe('Performance and Memory Management Tests', () => {
-  describe('Memory management', () => {
-    test('logs array maintains size limit during heavy usage', () => {
-      const { logs, addLogEntry } = require('../dashboard-functions');
+describe("Performance and Memory Management Tests", () => {
+  describe("Memory management", () => {
+    test("logs array maintains size limit during heavy usage", () => {
+      const { logs, addLogEntry } = require("../dashboard-functions");
 
       // Clear logs first
       logs.length = 0;
@@ -383,16 +392,16 @@ describe('Performance and Memory Management Tests', () => {
       for (let i = 0; i < 1500; i++) {
         addLogEntry({
           time: new Date(),
-          level: 'info',
+          level: "info",
           message: `Stress test message ${i}`,
-          agent: 'stress_test_agent'
+          agent: "stress_test_agent",
         });
       }
 
       expect(logs.length).toBeLessThanOrEqual(1000);
     });
 
-    test('resource data array maintains size limit', () => {
+    test("resource data array maintains size limit", () => {
       // Clear resource data
       resourceData.length = 0;
 
@@ -405,34 +414,34 @@ describe('Performance and Memory Management Tests', () => {
     });
   });
 
-  describe('DOM manipulation performance', () => {
-    test('updateActiveAgents handles large agent arrays efficiently', () => {
-      const { agents } = require('../dashboard-functions');
+  describe("DOM manipulation performance", () => {
+    test("updateActiveAgents handles large agent arrays efficiently", () => {
+      const { agents } = require("../dashboard-functions");
       agents.length = 0;
 
       // Add many agents
       for (let i = 0; i < 100; i++) {
         agents.push({
           id: `agent_${i}`,
-          type: 'testing',
-          status: 'running',
+          type: "testing",
+          status: "running",
           task: `Task ${i}`,
           progress: i % 100,
-          priority: 'medium'
+          priority: "medium",
         });
       }
 
       document.body.innerHTML = '<div id="activeAgents"></div>';
 
       const startTime = Date.now();
-      const { updateActiveAgents } = require('../dashboard-functions');
+      const { updateActiveAgents } = require("../dashboard-functions");
       updateActiveAgents();
       const endTime = Date.now();
 
       // Should complete in reasonable time (less than 100ms for 100 agents)
       expect(endTime - startTime).toBeLessThan(100);
 
-      const container = document.getElementById('activeAgents');
+      const container = document.getElementById("activeAgents");
       expect(container.children.length).toBe(100);
     });
   });

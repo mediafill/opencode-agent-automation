@@ -10,10 +10,10 @@ const {
   logs,
   resourceData,
   connectionState,
-  connectionMetrics
-} = require('../dashboard-functions');
+  connectionMetrics,
+} = require("../dashboard-functions");
 
-describe('Enhanced WebSocket Integration Tests', () => {
+describe("Enhanced WebSocket Integration Tests", () => {
   let mockWebSocket;
 
   beforeEach(() => {
@@ -40,7 +40,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
       onopen: null,
       onclose: null,
       onmessage: null,
-      onerror: null
+      onerror: null,
     };
 
     global.WebSocket = jest.fn(() => mockWebSocket);
@@ -52,19 +52,19 @@ describe('Enhanced WebSocket Integration Tests', () => {
     jest.clearAllMocks();
   });
 
-  describe('Enhanced Connection Management', () => {
-    test('creates WebSocket with protocol detection', () => {
-      Object.defineProperty(window, 'location', {
-        value: { protocol: 'https:' },
-        writable: true
+  describe("Enhanced Connection Management", () => {
+    test("creates WebSocket with protocol detection", () => {
+      Object.defineProperty(window, "location", {
+        value: { protocol: "https:" },
+        writable: true,
       });
 
       initializeWebSocket();
 
-      expect(global.WebSocket).toHaveBeenCalledWith('wss://localhost:8080/ws');
+      expect(global.WebSocket).toHaveBeenCalledWith("wss://localhost:8080/ws");
     });
 
-    test('handles connection timeout', () => {
+    test("handles connection timeout", () => {
       jest.useFakeTimers();
       initializeWebSocket();
 
@@ -75,11 +75,11 @@ describe('Enhanced WebSocket Integration Tests', () => {
       jest.useRealTimers();
     });
 
-    test('implements exponential backoff for reconnection', () => {
+    test("implements exponential backoff for reconnection", () => {
       jest.useFakeTimers();
 
       global.WebSocket = jest.fn(() => {
-        throw new Error('Connection failed');
+        throw new Error("Connection failed");
       });
 
       initializeWebSocket();
@@ -94,27 +94,31 @@ describe('Enhanced WebSocket Integration Tests', () => {
       jest.useRealTimers();
     });
 
-    test('handles maximum reconnection attempts', () => {
+    test("handles maximum reconnection attempts", () => {
       global.WebSocket = jest.fn(() => {
-        throw new Error('Connection failed');
+        throw new Error("Connection failed");
       });
 
       // Mock internal state for max attempts
-      const originalMaxAttempts = require('../dashboard-functions').maxReconnectAttempts;
-      require('../dashboard-functions').maxReconnectAttempts = 2;
+      const originalMaxAttempts =
+        require("../dashboard-functions").maxReconnectAttempts;
+      require("../dashboard-functions").maxReconnectAttempts = 2;
 
       initializeWebSocket();
 
-      const statusElement = document.getElementById('connectionText');
+      const statusElement = document.getElementById("connectionText");
       setTimeout(() => {
-        expect(statusElement.textContent).toContain('Max reconnection attempts');
-        require('../dashboard-functions').maxReconnectAttempts = originalMaxAttempts;
+        expect(statusElement.textContent).toContain(
+          "Max reconnection attempts",
+        );
+        require("../dashboard-functions").maxReconnectAttempts =
+          originalMaxAttempts;
       }, 100);
     });
   });
 
-  describe('Heartbeat and Health Monitoring', () => {
-    test('sends heartbeat ping messages', () => {
+  describe("Heartbeat and Health Monitoring", () => {
+    test("sends heartbeat ping messages", () => {
       jest.useFakeTimers();
 
       initializeWebSocket();
@@ -124,13 +128,13 @@ describe('Enhanced WebSocket Integration Tests', () => {
       jest.advanceTimersByTime(30000);
 
       expect(mockWebSocket.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"ping"')
+        expect.stringContaining('"type":"ping"'),
       );
 
       jest.useRealTimers();
     });
 
-    test('detects heartbeat timeout and forces reconnection', () => {
+    test("detects heartbeat timeout and forces reconnection", () => {
       jest.useFakeTimers();
 
       initializeWebSocket();
@@ -139,93 +143,102 @@ describe('Enhanced WebSocket Integration Tests', () => {
       // Simulate no heartbeat response for extended period
       jest.advanceTimersByTime(70000); // More than 2x heartbeat interval
 
-      expect(mockWebSocket.close).toHaveBeenCalledWith(1006, 'Heartbeat timeout');
+      expect(mockWebSocket.close).toHaveBeenCalledWith(
+        1006,
+        "Heartbeat timeout",
+      );
 
       jest.useRealTimers();
     });
 
-    test('updates connection metrics correctly', () => {
+    test("updates connection metrics correctly", () => {
       initializeWebSocket();
       mockWebSocket.onopen();
 
-      expect(require('../dashboard-functions').connectionMetrics.connectTime).toBeTruthy();
-      expect(require('../dashboard-functions').connectionMetrics.reconnectCount).toBe(0);
+      expect(
+        require("../dashboard-functions").connectionMetrics.connectTime,
+      ).toBeTruthy();
+      expect(
+        require("../dashboard-functions").connectionMetrics.reconnectCount,
+      ).toBe(0);
 
       // Simulate message sending
-      const result = sendMessage({ type: 'test' });
+      const result = sendMessage({ type: "test" });
       expect(result).toBe(true);
-      expect(require('../dashboard-functions').connectionMetrics.messagesSent).toBe(1);
+      expect(
+        require("../dashboard-functions").connectionMetrics.messagesSent,
+      ).toBe(1);
     });
   });
 
-  describe('Message Handling and Validation', () => {
-    test('validates message structure before processing', () => {
+  describe("Message Handling and Validation", () => {
+    test("validates message structure before processing", () => {
       const invalidMessages = [
         null,
         undefined,
-        'string',
+        "string",
         123,
         [],
-        { /* no type */ }
+        {
+          /* no type */
+        },
       ];
 
-      invalidMessages.forEach(msg => {
+      invalidMessages.forEach((msg) => {
         console.warn.mockClear();
         handleWebSocketMessage(msg);
         expect(console.warn).toHaveBeenCalled();
       });
     });
 
-    test('processes full_status message correctly', () => {
+    test("processes full_status message correctly", () => {
       const statusMessage = {
-        type: 'full_status',
+        type: "full_status",
         agents: [
-          { id: 'agent1', status: 'running', type: 'testing' },
-          { id: 'agent2', status: 'completed', type: 'security' }
+          { id: "agent1", status: "running", type: "testing" },
+          { id: "agent2", status: "completed", type: "security" },
         ],
-        tasks: [
-          { id: 'task1', status: 'pending', type: 'performance' }
-        ]
+        tasks: [{ id: "task1", status: "pending", type: "performance" }],
       };
 
       handleWebSocketMessage(statusMessage);
 
       expect(agents).toHaveLength(2);
       expect(tasks).toHaveLength(1);
-      expect(agents[0].id).toBe('agent1');
-      expect(tasks[0].id).toBe('task1');
+      expect(agents[0].id).toBe("agent1");
+      expect(tasks[0].id).toBe("task1");
     });
 
-    test('handles agent_update with status change logging', () => {
+    test("handles agent_update with status change logging", () => {
       // First add an agent
-      agents.push({ id: 'test_agent', status: 'pending' });
+      agents.push({ id: "test_agent", status: "pending" });
 
       const updateMessage = {
-        type: 'agent_update',
-        agent: { id: 'test_agent', status: 'running', progress: 50 }
+        type: "agent_update",
+        agent: { id: "test_agent", status: "running", progress: 50 },
       };
 
       handleWebSocketMessage(updateMessage);
 
-      expect(agents[0].status).toBe('running');
+      expect(agents[0].status).toBe("running");
       expect(agents[0].progress).toBe(50);
 
       // Check that status change was logged
-      const statusChangeLog = logs.find(log =>
-        log.message.includes('status changed from pending to running')
+      const statusChangeLog = logs.find((log) =>
+        log.message.includes("status changed from pending to running"),
       );
       expect(statusChangeLog).toBeTruthy();
     });
 
-    test('processes resource_update message', () => {
+    test("processes resource_update message", () => {
       const resourceMessage = {
-        type: 'resource_update',
+        type: "resource_update",
         resources: {
           cpu: 45,
           memory: 60,
           disk: 30,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
 
       handleWebSocketMessage(resourceMessage);
@@ -234,89 +247,96 @@ describe('Enhanced WebSocket Integration Tests', () => {
       expect(resourceData[0]).toMatchObject({
         cpu: expect.any(Number),
         memory: expect.any(Number),
-        disk: expect.any(Number)
+        disk: expect.any(Number),
       });
     });
 
-    test('handles system_alert message', () => {
+    test("handles system_alert message", () => {
       const alertMessage = {
-        type: 'system_alert',
+        type: "system_alert",
         alert: {
-          severity: 'error',
-          message: 'High memory usage detected'
-        }
+          severity: "error",
+          message: "High memory usage detected",
+        },
       };
 
       handleWebSocketMessage(alertMessage);
 
-      const alertLog = logs.find(log =>
-        log.message.includes('High memory usage detected') && log.level === 'error'
+      const alertLog = logs.find(
+        (log) =>
+          log.message.includes("High memory usage detected") &&
+          log.level === "error",
       );
       expect(alertLog).toBeTruthy();
-      expect(alertLog.agent).toBe('system');
+      expect(alertLog.agent).toBe("system");
     });
 
-    test('processes agent_metrics message', () => {
+    test("processes agent_metrics message", () => {
       const metricsMessage = {
-        type: 'agent_metrics',
+        type: "agent_metrics",
         metrics: {
           performance: {
             averageResponseTime: 250,
-            throughput: 100
+            throughput: 100,
           },
           resources: {
             cpu: 35,
-            memory: 55
-          }
-        }
+            memory: 55,
+          },
+        },
       };
 
       // Mock the performance update function
-      const originalUpdate = require('../dashboard-functions').updatePerformanceMetrics;
+      const originalUpdate =
+        require("../dashboard-functions").updatePerformanceMetrics;
       const mockUpdate = jest.fn();
-      require('../dashboard-functions').updatePerformanceMetrics = mockUpdate;
+      require("../dashboard-functions").updatePerformanceMetrics = mockUpdate;
 
       handleWebSocketMessage(metricsMessage);
 
-      expect(mockUpdate).toHaveBeenCalledWith(metricsMessage.metrics.performance);
+      expect(mockUpdate).toHaveBeenCalledWith(
+        metricsMessage.metrics.performance,
+      );
 
       // Restore original function
-      require('../dashboard-functions').updatePerformanceMetrics = originalUpdate;
+      require("../dashboard-functions").updatePerformanceMetrics =
+        originalUpdate;
     });
 
-    test('logs unknown message types', () => {
+    test("logs unknown message types", () => {
       const unknownMessage = {
-        type: 'unknown_message_type',
-        data: 'some data'
+        type: "unknown_message_type",
+        data: "some data",
       };
 
       console.log = jest.fn();
       handleWebSocketMessage(unknownMessage);
 
       expect(console.log).toHaveBeenCalledWith(
-        'Unknown message type received:', 'unknown_message_type'
+        "Unknown message type received:",
+        "unknown_message_type",
       );
     });
   });
 
-  describe('Connection State Management', () => {
-    test('handles normal WebSocket closure', () => {
+  describe("Connection State Management", () => {
+    test("handles normal WebSocket closure", () => {
       initializeWebSocket();
 
-      const closeEvent = { code: 1000, reason: 'Normal closure' };
+      const closeEvent = { code: 1000, reason: "Normal closure" };
       mockWebSocket.onclose(closeEvent);
 
-      const statusElement = document.getElementById('connectionText');
-      expect(statusElement.textContent).toBe('Disconnected');
+      const statusElement = document.getElementById("connectionText");
+      expect(statusElement.textContent).toBe("Disconnected");
     });
 
-    test('handles abnormal WebSocket closure with reconnection', () => {
+    test("handles abnormal WebSocket closure with reconnection", () => {
       jest.useFakeTimers();
 
       initializeWebSocket();
       mockWebSocket.onopen();
 
-      const closeEvent = { code: 1006, reason: 'Connection lost' };
+      const closeEvent = { code: 1006, reason: "Connection lost" };
       mockWebSocket.onclose(closeEvent);
 
       // Should attempt reconnection
@@ -326,18 +346,21 @@ describe('Enhanced WebSocket Integration Tests', () => {
       jest.useRealTimers();
     });
 
-    test('handles WebSocket errors gracefully', () => {
+    test("handles WebSocket errors gracefully", () => {
       initializeWebSocket();
 
-      const errorEvent = new Error('WebSocket error');
+      const errorEvent = new Error("WebSocket error");
       mockWebSocket.onerror(errorEvent);
 
-      expect(console.error).toHaveBeenCalledWith('WebSocket error:', errorEvent);
+      expect(console.error).toHaveBeenCalledWith(
+        "WebSocket error:",
+        errorEvent,
+      );
     });
   });
 
-  describe('Performance Monitoring', () => {
-    test('tracks connection uptime', () => {
+  describe("Performance Monitoring", () => {
+    test("tracks connection uptime", () => {
       jest.useFakeTimers();
       const startTime = Date.now();
 
@@ -346,213 +369,227 @@ describe('Enhanced WebSocket Integration Tests', () => {
 
       jest.advanceTimersByTime(5000);
 
-      const metrics = require('../dashboard-functions').connectionMetrics;
+      const metrics = require("../dashboard-functions").connectionMetrics;
       expect(metrics.connectTime.getTime()).toBeCloseTo(startTime, -2);
 
       jest.useRealTimers();
     });
 
-    test('tracks message statistics', () => {
+    test("tracks message statistics", () => {
       initializeWebSocket();
       mockWebSocket.onopen();
 
       // Send messages
-      sendMessage({ type: 'test1' });
-      sendMessage({ type: 'test2' });
+      sendMessage({ type: "test1" });
+      sendMessage({ type: "test2" });
 
       // Receive messages
-      mockWebSocket.onmessage({ data: JSON.stringify({ type: 'pong' }) });
-      mockWebSocket.onmessage({ data: JSON.stringify({ type: 'log_entry', log: {} }) });
+      mockWebSocket.onmessage({ data: JSON.stringify({ type: "pong" }) });
+      mockWebSocket.onmessage({
+        data: JSON.stringify({ type: "log_entry", log: {} }),
+      });
 
-      const metrics = require('../dashboard-functions').connectionMetrics;
+      const metrics = require("../dashboard-functions").connectionMetrics;
       expect(metrics.messagesSent).toBe(2);
       expect(metrics.messagesReceived).toBe(2);
     });
 
-    test('handles performance metrics updates', () => {
+    test("handles performance metrics updates", () => {
       const performanceData = {
         connectionUptime: 60000,
         messagesSent: 10,
         messagesReceived: 15,
-        reconnectCount: 1
+        reconnectCount: 1,
       };
 
       // Mock sendMessage to avoid actual WebSocket call
-      const originalSendMessage = require('../dashboard-functions').sendMessage;
+      const originalSendMessage = require("../dashboard-functions").sendMessage;
       const mockSendMessage = jest.fn();
 
       // Temporarily replace sendMessage
-      require('../dashboard-functions').sendMessage = mockSendMessage;
+      require("../dashboard-functions").sendMessage = mockSendMessage;
       global.websocket = { readyState: 1 };
 
-      const updatePerformanceMetrics = require('../dashboard-functions').updatePerformanceMetrics;
+      const updatePerformanceMetrics =
+        require("../dashboard-functions").updatePerformanceMetrics;
       updatePerformanceMetrics(performanceData);
 
       expect(mockSendMessage).toHaveBeenCalledWith({
-        type: 'performance_metrics',
+        type: "performance_metrics",
         data: performanceData,
-        timestamp: expect.any(Number)
+        timestamp: expect.any(Number),
       });
 
       // Restore original function
-      require('../dashboard-functions').sendMessage = originalSendMessage;
+      require("../dashboard-functions").sendMessage = originalSendMessage;
     });
   });
 
-  describe('Real-time Data Updates', () => {
-    test('updates agent display in real-time', () => {
-      agents.push({ id: 'real_time_agent', status: 'pending', task: 'Test task', progress: 0 });
+  describe("Real-time Data Updates", () => {
+    test("updates agent display in real-time", () => {
+      agents.push({
+        id: "real_time_agent",
+        status: "pending",
+        task: "Test task",
+        progress: 0,
+      });
 
       const updateMessage = {
-        type: 'agent_update',
-        agent: { id: 'real_time_agent', status: 'running', progress: 75 }
+        type: "agent_update",
+        agent: { id: "real_time_agent", status: "running", progress: 75 },
       };
 
       handleWebSocketMessage(updateMessage);
 
-      const container = document.getElementById('activeAgents');
-      expect(container.innerHTML).toContain('real_time_agent');
-      expect(container.innerHTML).toContain('running');
-      expect(container.innerHTML).toContain('75%');
+      const container = document.getElementById("activeAgents");
+      expect(container.innerHTML).toContain("real_time_agent");
+      expect(container.innerHTML).toContain("running");
+      expect(container.innerHTML).toContain("75%");
     });
 
-    test('updates task queue in real-time', () => {
+    test("updates task queue in real-time", () => {
       const taskUpdate = {
-        type: 'task_update',
-        task: { id: 'new_task', status: 'in_progress', type: 'testing', priority: 'high' }
+        type: "task_update",
+        task: {
+          id: "new_task",
+          status: "in_progress",
+          type: "testing",
+          priority: "high",
+        },
       };
 
       handleWebSocketMessage(taskUpdate);
 
       expect(tasks).toHaveLength(1);
-      expect(tasks[0].id).toBe('new_task');
+      expect(tasks[0].id).toBe("new_task");
 
-      const container = document.getElementById('taskQueue');
-      expect(container.innerHTML).toContain('IN_PROGRESS');
+      const container = document.getElementById("taskQueue");
+      expect(container.innerHTML).toContain("IN_PROGRESS");
     });
 
-    test('appends log entries in real-time', () => {
+    test("appends log entries in real-time", () => {
       const logMessage = {
-        type: 'log_entry',
+        type: "log_entry",
         log: {
           time: new Date(),
-          level: 'info',
-          message: 'Real-time log entry',
-          agent: 'test_agent'
-        }
+          level: "info",
+          message: "Real-time log entry",
+          agent: "test_agent",
+        },
       };
 
       handleWebSocketMessage(logMessage);
 
       expect(logs).toHaveLength(1);
-      expect(logs[0].message).toBe('Real-time log entry');
+      expect(logs[0].message).toBe("Real-time log entry");
 
-      const container = document.getElementById('logsContainer');
-      expect(container.innerHTML).toContain('Real-time log entry');
+      const container = document.getElementById("logsContainer");
+      expect(container.innerHTML).toContain("Real-time log entry");
     });
 
-    test('maintains log size limits during heavy traffic', () => {
+    test("maintains log size limits during heavy traffic", () => {
       // Simulate heavy log traffic
       for (let i = 0; i < 1200; i++) {
         const logMessage = {
-          type: 'log_entry',
+          type: "log_entry",
           log: {
             time: new Date(),
-            level: 'debug',
+            level: "debug",
             message: `Log entry ${i}`,
-            agent: 'stress_test'
-          }
+            agent: "stress_test",
+          },
         };
         handleWebSocketMessage(logMessage);
       }
 
       expect(logs.length).toBeLessThanOrEqual(1000);
-      expect(logs[logs.length - 1].message).toContain('Log entry 1199');
+      expect(logs[logs.length - 1].message).toContain("Log entry 1199");
     });
   });
 
-  describe('Error Recovery and Resilience', () => {
-    test('recovers from malformed JSON messages', () => {
+  describe("Error Recovery and Resilience", () => {
+    test("recovers from malformed JSON messages", () => {
       initializeWebSocket();
 
       const malformedEvent = { data: '{"invalid": json}' };
       mockWebSocket.onmessage(malformedEvent);
 
       expect(console.error).toHaveBeenCalledWith(
-        'Error parsing WebSocket message:',
-        expect.any(Error)
+        "Error parsing WebSocket message:",
+        expect.any(Error),
       );
 
       // Should add error to logs
-      const errorLog = logs.find(log =>
-        log.message.includes('WebSocket message parse error')
+      const errorLog = logs.find((log) =>
+        log.message.includes("WebSocket message parse error"),
       );
       expect(errorLog).toBeTruthy();
     });
 
-    test('handles null agent data gracefully', () => {
+    test("handles null agent data gracefully", () => {
       const invalidUpdate = {
-        type: 'agent_update',
-        agent: null
+        type: "agent_update",
+        agent: null,
       };
 
       console.warn.mockClear();
       handleWebSocketMessage(invalidUpdate);
 
-      expect(console.warn).toHaveBeenCalledWith('Invalid agent data:', null);
+      expect(console.warn).toHaveBeenCalledWith("Invalid agent data:", null);
       expect(agents).toHaveLength(0); // Should not add invalid agent
     });
 
-    test('handles missing agent ID gracefully', () => {
+    test("handles missing agent ID gracefully", () => {
       const invalidUpdate = {
-        type: 'agent_update',
-        agent: { status: 'running', progress: 50 } // missing id
+        type: "agent_update",
+        agent: { status: "running", progress: 50 }, // missing id
       };
 
       console.warn.mockClear();
       handleWebSocketMessage(invalidUpdate);
 
       expect(console.warn).toHaveBeenCalledWith(
-        'Invalid agent data:',
-        expect.objectContaining({ status: 'running' })
+        "Invalid agent data:",
+        expect.objectContaining({ status: "running" }),
       );
     });
 
-    test('recovers from send message failures', () => {
+    test("recovers from send message failures", () => {
       mockWebSocket.send = jest.fn(() => {
-        throw new Error('Send failed');
+        throw new Error("Send failed");
       });
 
       initializeWebSocket();
       mockWebSocket.onopen();
 
-      const result = sendMessage({ type: 'test' });
+      const result = sendMessage({ type: "test" });
 
       expect(result).toBe(false);
       expect(console.error).toHaveBeenCalledWith(
-        'Error sending WebSocket message:',
-        expect.any(Error)
+        "Error sending WebSocket message:",
+        expect.any(Error),
       );
     });
 
-    test('handles WebSocket state changes during operations', () => {
+    test("handles WebSocket state changes during operations", () => {
       initializeWebSocket();
       mockWebSocket.onopen();
 
       // Change state to closing mid-operation
       mockWebSocket.readyState = WebSocket.CLOSING;
 
-      const result = sendMessage({ type: 'test' });
+      const result = sendMessage({ type: "test" });
       expect(result).toBe(false);
       expect(console.warn).toHaveBeenCalledWith(
-        'Cannot send message: WebSocket not connected'
+        "Cannot send message: WebSocket not connected",
       );
     });
   });
 
-  describe('Connection Health Checks', () => {
-    test('performs health check for different WebSocket states', () => {
-      const healthCheck = require('../dashboard-functions').performConnectionHealthCheck;
+  describe("Connection Health Checks", () => {
+    test("performs health check for different WebSocket states", () => {
+      const healthCheck =
+        require("../dashboard-functions").performConnectionHealthCheck;
 
       // No WebSocket
       global.websocket = null;
@@ -560,42 +597,45 @@ describe('Enhanced WebSocket Integration Tests', () => {
 
       // Connecting state
       global.websocket = { readyState: 0 };
-      expect(healthCheck()).toBe('connecting');
+      expect(healthCheck()).toBe("connecting");
 
       // Open and healthy
       global.websocket = { readyState: 1 };
-      require('../dashboard-functions').connectionMetrics.lastHeartbeat = new Date();
-      expect(healthCheck()).toBe('healthy');
+      require("../dashboard-functions").connectionMetrics.lastHeartbeat =
+        new Date();
+      expect(healthCheck()).toBe("healthy");
 
       // Open but unhealthy (no recent heartbeat)
-      require('../dashboard-functions').connectionMetrics.lastHeartbeat = new Date(Date.now() - 60000);
-      expect(healthCheck()).toBe('unhealthy');
+      require("../dashboard-functions").connectionMetrics.lastHeartbeat =
+        new Date(Date.now() - 60000);
+      expect(healthCheck()).toBe("unhealthy");
 
       // Closing state
       global.websocket = { readyState: 2 };
-      expect(healthCheck()).toBe('closing');
+      expect(healthCheck()).toBe("closing");
 
       // Closed state
       global.websocket = { readyState: 3 };
-      expect(healthCheck()).toBe('closed');
+      expect(healthCheck()).toBe("closed");
     });
   });
 
-  describe('Advanced Message Processing', () => {
-    test('processes batch message updates efficiently', () => {
+  describe("Advanced Message Processing", () => {
+    test("processes batch message updates efficiently", () => {
       const batchMessage = {
-        type: 'full_status',
+        type: "full_status",
         agents: Array.from({ length: 50 }, (_, i) => ({
           id: `agent_${i}`,
-          status: i % 3 === 0 ? 'running' : i % 3 === 1 ? 'completed' : 'pending',
-          type: 'testing',
-          progress: Math.floor(Math.random() * 100)
+          status:
+            i % 3 === 0 ? "running" : i % 3 === 1 ? "completed" : "pending",
+          type: "testing",
+          progress: Math.floor(Math.random() * 100),
         })),
         tasks: Array.from({ length: 30 }, (_, i) => ({
           id: `task_${i}`,
-          status: 'pending',
-          type: 'testing'
-        }))
+          status: "pending",
+          type: "testing",
+        })),
       };
 
       const startTime = Date.now();
@@ -607,16 +647,19 @@ describe('Enhanced WebSocket Integration Tests', () => {
       expect(endTime - startTime).toBeLessThan(100); // Should process quickly
     });
 
-    test('handles concurrent message processing', () => {
+    test("handles concurrent message processing", () => {
       const messages = [
-        { type: 'agent_update', agent: { id: 'agent1', status: 'running' } },
-        { type: 'task_update', task: { id: 'task1', status: 'completed' } },
-        { type: 'log_entry', log: { time: new Date(), level: 'info', message: 'Test' } },
-        { type: 'resource_update', resources: { cpu: 50, memory: 60 } }
+        { type: "agent_update", agent: { id: "agent1", status: "running" } },
+        { type: "task_update", task: { id: "task1", status: "completed" } },
+        {
+          type: "log_entry",
+          log: { time: new Date(), level: "info", message: "Test" },
+        },
+        { type: "resource_update", resources: { cpu: 50, memory: 60 } },
       ];
 
       // Process all messages rapidly
-      messages.forEach(msg => handleWebSocketMessage(msg));
+      messages.forEach((msg) => handleWebSocketMessage(msg));
 
       expect(agents).toHaveLength(1);
       expect(tasks).toHaveLength(1);
@@ -625,51 +668,51 @@ describe('Enhanced WebSocket Integration Tests', () => {
     });
   });
 
-  describe('WebSocket Integration with UI Updates', () => {
-    test('updates connection status indicator in DOM', () => {
+  describe("WebSocket Integration with UI Updates", () => {
+    test("updates connection status indicator in DOM", () => {
       initializeWebSocket();
       mockWebSocket.onopen();
 
-      const statusDot = document.getElementById('connectionStatus');
-      const statusText = document.getElementById('connectionText');
+      const statusDot = document.getElementById("connectionStatus");
+      const statusText = document.getElementById("connectionText");
 
-      expect(statusDot.className).toContain('connected');
-      expect(statusText.textContent).toBe('Connected');
+      expect(statusDot.className).toContain("connected");
+      expect(statusText.textContent).toBe("Connected");
     });
 
-    test('updates system resources display from WebSocket data', () => {
+    test("updates system resources display from WebSocket data", () => {
       const resourceUpdate = {
-        type: 'resource_update',
+        type: "resource_update",
         resources: {
           cpu: 42,
           memory: 68,
           disk: 25,
-          active_processes: 5
-        }
+          active_processes: 5,
+        },
       };
 
       handleWebSocketMessage(resourceUpdate);
 
-      const container = document.getElementById('systemResources');
-      expect(container.innerHTML).toContain('Active Processes');
+      const container = document.getElementById("systemResources");
+      expect(container.innerHTML).toContain("Active Processes");
     });
 
-    test('integrates with timeline updates', () => {
+    test("integrates with timeline updates", () => {
       const agentUpdate = {
-        type: 'agent_update',
+        type: "agent_update",
         agent: {
-          id: 'timeline_agent',
-          status: 'completed',
-          task: 'Timeline test task',
-          startTime: new Date().toISOString()
-        }
+          id: "timeline_agent",
+          status: "completed",
+          task: "Timeline test task",
+          startTime: new Date().toISOString(),
+        },
       };
 
       handleWebSocketMessage(agentUpdate);
 
-      const timeline = document.getElementById('timeline');
-      expect(timeline.innerHTML).toContain('timeline_agent');
-      expect(timeline.innerHTML).toContain('Timeline test task');
+      const timeline = document.getElementById("timeline");
+      expect(timeline.innerHTML).toContain("timeline_agent");
+      expect(timeline.innerHTML).toContain("Timeline test task");
     });
   });
 });

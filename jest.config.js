@@ -1,47 +1,39 @@
 module.exports = {
-  testEnvironment: 'jsdom',
-  roots: ['<rootDir>/tests'],
-  testMatch: [
-    '**/__tests__/**/*.js',
-    '**/?(*.)+(spec|test).js'
-  ],
+  testEnvironment: "jsdom",
+  roots: ["<rootDir>/tests"],
+  testMatch: ["**/__tests__/**/*.js", "**/?(*.)+(spec|test).js"],
   collectCoverageFrom: [
-    'bin/**/*.js',
-    'scripts/**/*.js',
-    'tests/dashboard-functions.js',
-    '!**/node_modules/**',
-    '!**/logs/**',
-    '!**/.claude/**',
-    '!**/coverage/**',
-    '!**/*.test.js',
-    '!**/*.spec.js',
-    '!**/jest.config.js',
-    '!**/setup.js',
-    '!**/__mocks__/**',
-    '!**/examples/**'
+    "bin/**/*.js",
+    "scripts/**/*.js",
+    "tests/dashboard-functions.js",
+    "!**/node_modules/**",
+    "!**/logs/**",
+    "!**/.claude/**",
+    "!**/coverage/**",
+    "!**/*.test.js",
+    "!**/*.spec.js",
+    "!**/jest.config.js",
+    "!**/setup.js",
+    "!**/__mocks__/**",
+    "!**/examples/**",
   ],
-  coverageDirectory: 'coverage',
-  coverageReporters: [
-    'text',
-    'lcov',
-    'html',
-    'json-summary'
-  ],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text", "lcov", "html", "json-summary"],
   coverageThreshold: {
     global: {
       branches: 80,
       functions: 80,
       lines: 80,
-      statements: 80
-    }
+      statements: 80,
+    },
   },
   verbose: true,
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
   testTimeout: 10000,
   collectCoverage: true,
   modulePathIgnorePatterns: [],
   testEnvironmentOptions: {
-    resources: 'usable',
-    runScripts: 'dangerously'
-  }
+    resources: "usable",
+    runScripts: "dangerously",
+  },
 };

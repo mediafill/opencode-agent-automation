@@ -1,0 +1,63 @@
+Performance Profile Report - 2025-09-26 10:24:03.596068
+============================================================
+
+Top 50 functions by cumulative time:
+----------------------------------------
+         24048 function calls (22166 primitive calls) in 30.072 seconds
+
+   Ordered by: cumulative time
+   List reduced from 298 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      2/1    0.000    0.000   30.068   30.068 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:205(run_task_manager)
+        1    0.000    0.000   30.068   30.068 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:579(stop)
+        1    0.000    0.000   30.063   30.063 /usr/lib/python3.13/threading.py:1058(join)
+        1    0.000    0.000   30.063   30.063 {method 'join' of '_thread._ThreadHandle' objects}
+       20    0.001    0.000   10.013    0.501 /usr/lib/python3.13/site-packages/psutil/__init__.py:1774(cpu_percent)
+       15    0.001    0.000    0.058    0.004 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:324(save_task_status)
+       15    0.008    0.001    0.044    0.003 /usr/lib/python3.13/json/__init__.py:120(dump)
+     2115    0.007    0.000    0.031    0.000 /usr/lib/python3.13/json/encoder.py:415(_iterencode)
+3915/2115    0.014    0.000    0.024    0.000 /usr/lib/python3.13/json/encoder.py:334(_iterencode_dict)
+       21    0.001    0.000    0.016    0.001 /usr/lib/python3.13/site-packages/psutil/__init__.py:2081(disk_io_counters)
+     1905    0.006    0.000    0.016    0.000 /usr/lib/python3.13/json/encoder.py:278(_iterencode_list)
+      135    0.015    0.000    0.015    0.000 {built-in method _io.open}
+       40    0.000    0.000    0.014    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1981(virtual_memory)
+       40    0.007    0.000    0.014    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:351(virtual_memory)
+       41    0.000    0.000    0.010    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1675(cpu_times)
+       41    0.001    0.000    0.010    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:540(cpu_times)
+       21    0.001    0.000    0.009    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:1073(disk_io_counters)
+       11    0.000    0.000    0.009    0.001 /usr/lib/python3.13/site-packages/psutil/__init__.py:2139(net_io_counters)
+       32    0.000    0.000    0.008    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:736(wrap_numbers)
+       32    0.004    0.000    0.007    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:679(run)
+      168    0.001    0.000    0.005    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:1078(read_procfs)
+        1    0.000    0.000    0.005    0.005 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:535(executor_loop)
+       41    0.005    0.000    0.005    0.000 {method 'readline' of '_io.BufferedReader' objects}
+     2108    0.005    0.000    0.005    0.000 {method 'write' of '_io.TextIOWrapper' objects}
+     2361    0.005    0.000    0.005    0.000 {method 'split' of 'bytes' objects}
+       20    0.000    0.000    0.005    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1815(calculate)
+       11    0.001    0.000    0.005    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:990(net_io_counters)
+       20    0.002    0.000    0.003    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1753(_cpu_times_deltas)
+      250    0.001    0.000    0.003    0.000 {built-in method builtins.sum}
+     1669    0.003    0.000    0.003    0.000 {method 'append' of 'list' objects}
+     1586    0.003    0.000    0.003    0.000 {built-in method builtins.isinstance}
+        4    0.000    0.000    0.003    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:108(info)
+        4    0.000    0.000    0.003    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:99(_log_with_context)
+        4    0.000    0.000    0.003    0.001 /usr/lib/python3.13/logging/__init__.py:1575(log)
+      147    0.001    0.000    0.003    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:231(is_storage_device)
+        4    0.000    0.000    0.003    0.001 /usr/lib/python3.13/logging/__init__.py:1641(_log)
+      135    0.002    0.000    0.002    0.000 {method '__exit__' of '_io._IOBase' objects}
+       32    0.000    0.000    0.002    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:767(open_text)
+      6/4    0.000    0.000    0.002    0.001 /usr/lib/python3.13/threading.py:955(start)
+       32    0.002    0.000    0.002    0.000 {method 'readlines' of '_io._IOBase' objects}
+        2    0.000    0.000    0.002    0.001 /usr/lib/python3.13/subprocess.py:817(__init__)
+      6/4    0.000    0.000    0.002    0.001 /usr/lib/python3.13/threading.py:641(wait)
+      210    0.001    0.000    0.002    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:87(<genexpr>)
+       81    0.000    0.000    0.002    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:763(open_binary)
+        2    0.000    0.000    0.002    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:403(start_task_execution)
+        2    0.000    0.000    0.002    0.001 /usr/lib/python3.13/subprocess.py:1808(_execute_child)
+        4    0.000    0.000    0.002    0.000 /usr/lib/python3.13/logging/__init__.py:1667(handle)
+        4    0.000    0.000    0.002    0.000 /usr/lib/python3.13/logging/__init__.py:1721(callHandlers)
+        8    0.000    0.000    0.002    0.000 /usr/lib/python3.13/logging/__init__.py:1011(handle)
+      2/1    0.000    0.000    0.002    0.002 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:65(start_system_monitoring)
+
+

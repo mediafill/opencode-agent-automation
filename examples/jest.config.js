@@ -1,25 +1,18 @@
 module.exports = {
-  testEnvironment: 'node',
-  roots: ['<rootDir>/tests'],
-  testMatch: [
-    '**/__tests__/**/*.js',
-    '**/?(*.)+(spec|test).js'
-  ],
+  testEnvironment: "node",
+  roots: ["<rootDir>/tests"],
+  testMatch: ["**/__tests__/**/*.js", "**/?(*.)+(spec|test).js"],
   collectCoverageFrom: [
-    'app.js',
-    'logger.js',
-    '!**/node_modules/**',
-    '!**/logs/**',
-    '!**/.claude/**'
+    "app.js",
+    "logger.js",
+    "!**/node_modules/**",
+    "!**/logs/**",
+    "!**/.claude/**",
   ],
-  coverageDirectory: 'coverage',
-  coverageReporters: [
-    'text',
-    'lcov',
-    'html'
-  ],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text", "lcov", "html"],
   verbose: true,
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
   testTimeout: 10000,
-  collectCoverage: false
+  collectCoverage: false,
 };

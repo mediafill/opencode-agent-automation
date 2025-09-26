@@ -706,4 +706,3 @@ describe('Error Handling Integration Tests', () => {
       // Should have some successful starts and possibly some errors due to limits
       expect(startedTasks + errors).toBe(responses.length);
     });
-  });

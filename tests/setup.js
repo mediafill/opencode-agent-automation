@@ -1,8 +1,8 @@
 // Test setup configuration
-require('@testing-library/jest-dom');
+require("@testing-library/jest-dom");
 
 // Add TextEncoder/TextDecoder polyfills for jsdom
-const { TextEncoder, TextDecoder } = require('util');
+const { TextEncoder, TextDecoder } = require("util");
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
@@ -10,7 +10,7 @@ global.TextDecoder = TextDecoder;
 global.Chart = jest.fn(() => ({
   data: { labels: [], datasets: [] },
   update: jest.fn(),
-  destroy: jest.fn()
+  destroy: jest.fn(),
 }));
 
 // Mock WebSocket
@@ -38,7 +38,9 @@ class MockWebSocket {
   }
 }
 
-global.WebSocket = jest.fn().mockImplementation((url) => new MockWebSocket(url));
+global.WebSocket = jest
+  .fn()
+  .mockImplementation((url) => new MockWebSocket(url));
 global.WebSocket.CONNECTING = 0;
 global.WebSocket.OPEN = 1;
 global.WebSocket.CLOSING = 2;
@@ -54,7 +56,7 @@ const localStorageMock = {
 global.localStorage = localStorageMock;
 
 // Mock URL.createObjectURL
-global.URL.createObjectURL = jest.fn(() => 'mocked-blob-url');
+global.URL.createObjectURL = jest.fn(() => "mocked-blob-url");
 global.URL.revokeObjectURL = jest.fn();
 
 // Mock canvas getContext for charts
@@ -107,7 +109,7 @@ beforeEach(() => {
   global.console.warn = jest.fn();
 
   // Clear DOM
-  document.body.innerHTML = '';
+  document.body.innerHTML = "";
 
   // Reset localStorage mock
   localStorageMock.getItem.mockClear();
