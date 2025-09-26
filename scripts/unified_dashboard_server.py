@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Enhanced OpenCode Agent Dashboard WebSocket Server
-Provides real-time data to the web dashboard with proper Claude process detection
+Unified OpenCode Agent Dashboard Server
+Combines monitoring with WebSocket support when available
 """
 
 import asyncio
@@ -13,6 +13,7 @@ import subprocess
 import threading
 import signal
 import re
+import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Set, Optional, Any
@@ -22,58 +23,31 @@ from watchdog.events import FileSystemEventHandler
 # Try to import websockets, fallback gracefully if not available
 try:
     import websockets
+    from websockets import serve
     WEBSOCKETS_AVAILABLE = True
 except ImportError:
+    websockets = None
+    serve = None
     WEBSOCKETS_AVAILABLE = False
     print("Warning: websockets not available. Install with: pip install websockets")
+    print("Falling back to monitoring-only mode.")
 
 try:
     from logger import StructuredLogger
     logger = StructuredLogger(__name__)
 except ImportError:
     import logging
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
 
 try:
     from task_manager import TaskManager, TaskStatus
     TASK_MANAGER_AVAILABLE = True
 except ImportError:
+    TaskManager = None
+    TaskStatus = None
     TASK_MANAGER_AVAILABLE = False
     logger.warning("TaskManager not available, using basic task tracking")
-    
-    # Create placeholder classes when TaskManager is not available
-    class _TaskManager:
-        def __init__(self, *args, **kwargs):
-            pass
-        
-        def add_status_callback(self, callback):
-            pass
-        
-        def add_progress_callback(self, callback):
-            pass
-        
-        def start(self):
-            pass
-        
-        def stop(self):
-            pass
-        
-        def add_task(self, task_data):
-            return None
-        
-        def get_status_summary(self):
-            return {"total": 0, "pending": 0, "running": 0, "completed": 0, "failed": 0}
-    
-    class _TaskStatus:
-        PENDING = "pending"
-        RUNNING = "running" 
-        COMPLETED = "completed"
-        FAILED = "failed"
-    
-    # Assign placeholder classes
-    TaskManager = _TaskManager
-    TaskStatus = _TaskStatus
 
 
 class LogFileHandler(FileSystemEventHandler):
@@ -106,14 +80,14 @@ class LogFileHandler(FileSystemEventHandler):
                     for line in new_lines:
                         line = line.strip()
                         if line:
-                            self.server.broadcast_log_entry(file_path, line)
+                            self.server.add_log_entry(file_path, line)
         
         except Exception as e:
             logger.error(f"Error processing log file {file_path}: {e}")
 
 
-class EnhancedDashboardServer:
-    """Enhanced WebSocket server for the OpenCode agent dashboard"""
+class UnifiedDashboardServer:
+    """Unified dashboard server with optional WebSocket support"""
     
     def __init__(self, project_dir: Optional[str] = None, port: int = 8080):
         self.project_dir = Path(project_dir) if project_dir else Path.cwd()
@@ -123,17 +97,14 @@ class EnhancedDashboardServer:
         self.port = port
         
         # WebSocket connections (if available)
-        if WEBSOCKETS_AVAILABLE:
-            self.clients: Set = set()
-        else:
-            self.clients = set()
+        self.clients: Set = set()
         
         # Data storage
         self.agents = {}
         self.tasks = {}
         self.logs = []
         self.system_resources = {}
-        self.claude_processes = {}  # Track Claude/OpenCode processes specifically
+        self.claude_processes = {}
         
         # File monitoring
         self.observer = Observer()
@@ -141,7 +112,7 @@ class EnhancedDashboardServer:
         
         # Task manager integration
         self.task_manager = None
-        if TASK_MANAGER_AVAILABLE:
+        if TASK_MANAGER_AVAILABLE and TaskManager is not None:
             try:
                 self.task_manager = TaskManager(str(self.project_dir))
                 self.task_manager.add_status_callback(self._on_task_status_change)
@@ -154,22 +125,56 @@ class EnhancedDashboardServer:
         self.process_scan_interval = timedelta(seconds=10)
         self.running = False
         
+        # File caching to avoid repeated JSON reads
+        self.file_cache = {}  # file_path -> (data, timestamp)
+        self.cache_ttl = timedelta(seconds=30)  # Cache for 30 seconds
+        
         # Ensure directories exist
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Enhanced Dashboard Server initialized")
+    def cached_read_json(self, file_path: Path) -> Optional[Dict]:
+        """Read JSON file with caching to avoid repeated disk I/O"""
+        now = datetime.now()
+        cache_key = str(file_path)
+        
+        # Check cache first
+        if cache_key in self.file_cache:
+            cached_data, cache_time = self.file_cache[cache_key]
+            if now - cache_time < self.cache_ttl:
+                return cached_data
+        
+        # Cache miss or expired, read from disk
+        try:
+            if file_path.exists():
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    self.file_cache[cache_key] = (data, now)
+                    return data
+        except Exception as e:
+            logger.error(f"Error reading {file_path}: {e}")
+        
+        return None
+    
+    def invalidate_cache(self, file_path: Path):
+        """Invalidate cache for a specific file"""
+        cache_key = str(file_path)
+        if cache_key in self.file_cache:
+            del self.file_cache[cache_key]
+        
+        logger.info(f"Unified Dashboard Server initialized")
+        logger.info(f"Project directory: {self.project_dir}")
         logger.info(f"WebSocket support: {'Enabled' if WEBSOCKETS_AVAILABLE else 'Disabled'}")
         logger.info(f"Task Manager support: {'Enabled' if TASK_MANAGER_AVAILABLE else 'Disabled'}")
 
     def detect_claude_processes(self) -> Dict[str, Dict]:
-        """Enhanced Claude/OpenCode process detection with detailed information"""
+        """Enhanced Claude/OpenCode process detection"""
         claude_processes = {}
         
-        # Multiple patterns to identify Claude/OpenCode processes
+        # Patterns to identify Claude/OpenCode processes
         claude_patterns = [
             r'opencode.*run',
             r'claude.*desktop',
-            r'claude.*cli', 
+            r'claude.*cli',
             r'anthropic.*claude',
             r'python.*opencode',
             r'node.*opencode',
@@ -254,7 +259,6 @@ class EnhancedDashboardServer:
     
     def _extract_task_id_from_cmdline(self, cmdline: str) -> Optional[str]:
         """Extract task ID from command line if present"""
-        # Look for task ID patterns
         patterns = [
             r'task[_-]([a-zA-Z0-9_-]+)',
             r'--task[=\s]+([a-zA-Z0-9_-]+)',
@@ -297,11 +301,10 @@ class EnhancedDashboardServer:
     def update_system_resources(self):
         """Update system resource information"""
         try:
-            cpu_percent = psutil.cpu_percent(interval=0.1)  # Shorter interval for responsiveness
+            cpu_percent = psutil.cpu_percent(interval=0.1)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
             
-            # Count active Claude processes
             active_processes = len(self.claude_processes)
             
             self.system_resources = {
@@ -322,24 +325,19 @@ class EnhancedDashboardServer:
             logger.error(f"Error updating system resources: {e}")
     
     def load_tasks(self):
-        """Load tasks from tasks.json file"""
-        try:
-            if self.tasks_file.exists():
-                with open(self.tasks_file, 'r') as f:
-                    data = json.load(f)
-                    tasks_list = data.get('tasks', [])
-                    
-                    # Convert to dict keyed by ID and add runtime status
-                    for task in tasks_list:
-                        task_id = task.get('id')
-                        if task_id:
-                            # Check if task is currently running
-                            status = self.get_task_runtime_status(task_id)
-                            task['runtime_status'] = status
-                            self.tasks[task_id] = task
-                            
-        except Exception as e:
-            logger.error(f"Error loading tasks: {e}")
+        """Load tasks from tasks.json file with caching"""
+        data = self.cached_read_json(self.tasks_file)
+        if data:
+            tasks_list = data.get('tasks', [])
+            
+            # Convert to dict keyed by ID and add runtime status
+            for task in tasks_list:
+                task_id = task.get('id')
+                if task_id:
+                    # Check if task is currently running
+                    status = self.get_task_runtime_status(task_id)
+                    task['runtime_status'] = status
+                    self.tasks[task_id] = task
     
     def get_task_runtime_status(self, task_id: str) -> str:
         """Get runtime status of a task by checking processes and logs"""
@@ -454,14 +452,20 @@ class EnhancedDashboardServer:
                     except Exception as e:
                         logger.error(f"Error reading log file {log_file}: {e}")
         
-        # Update agents
+        # Check if agents changed
         changed = len(current_agents) != len(self.agents)
-        for agent_id, agent_data in current_agents.items():
-            if agent_id not in self.agents or self.agents[agent_id] != agent_data:
-                changed = True
-                break
+        if not changed:
+            for agent_id, agent_data in current_agents.items():
+                if agent_id not in self.agents or self.agents[agent_id] != agent_data:
+                    changed = True
+                    break
         
         self.agents = current_agents
+        
+        # Broadcast changes if WebSocket is available
+        if changed and WEBSOCKETS_AVAILABLE and self.clients:
+            asyncio.create_task(self.broadcast_agents_update())
+        
         return changed
     
     def estimate_progress(self, agent_id: str) -> int:
@@ -476,7 +480,6 @@ class EnhancedDashboardServer:
                 lines = len(content.splitlines())
                 
                 # Simple heuristic: more log lines = more progress
-                # Cap at 90% unless explicitly completed
                 if 'completed successfully' in content.lower():
                     return 100
                 elif lines > 100:
@@ -497,8 +500,8 @@ class EnhancedDashboardServer:
                 return line.strip()[:100]
         return "Unknown error occurred"
     
-    def broadcast_log_entry(self, file_path: str, line: str):
-        """Broadcast a new log entry (stub for non-WebSocket mode)"""
+    def add_log_entry(self, file_path: str, line: str):
+        """Add a new log entry"""
         log_entry = {
             'time': datetime.now().isoformat(),
             'level': self.extract_log_level(line),
@@ -511,8 +514,9 @@ class EnhancedDashboardServer:
         if len(self.logs) > 1000:
             self.logs = self.logs[-1000:]
         
-        # In non-WebSocket mode, just log it
-        logger.debug(f"Log entry: {log_entry}")
+        # Broadcast to clients if WebSocket is available
+        if WEBSOCKETS_AVAILABLE and self.clients:
+            asyncio.create_task(self.broadcast_log_entry(log_entry))
     
     def extract_log_level(self, line: str) -> str:
         """Extract log level from log line"""
@@ -531,11 +535,142 @@ class EnhancedDashboardServer:
     def _on_task_status_change(self, task, old_status, new_status):
         """Handle task status changes from task manager"""
         logger.info(f"Task {task.id} status changed: {old_status.value} -> {new_status.value}")
+        if WEBSOCKETS_AVAILABLE and self.clients:
+            asyncio.create_task(self.broadcast_task_update(task.to_dict()))
     
     def _on_task_progress_update(self, task, old_progress, new_progress):
         """Handle task progress updates from task manager"""
         logger.info(f"Task {task.id} progress: {old_progress}% -> {new_progress}%")
+        if WEBSOCKETS_AVAILABLE and self.clients:
+            asyncio.create_task(self.broadcast_task_update(task.to_dict()))
     
+    # WebSocket methods (only available if websockets is installed)
+    async def register_client(self, websocket):
+        """Register a new WebSocket client"""
+        if not WEBSOCKETS_AVAILABLE:
+            return
+        
+        self.clients.add(websocket)
+        logger.info(f"Client connected. Total clients: {len(self.clients)}")
+        
+        # Send current status to new client
+        await self.send_full_status(websocket)
+    
+    async def unregister_client(self, websocket):
+        """Unregister a WebSocket client"""
+        if not WEBSOCKETS_AVAILABLE:
+            return
+        
+        self.clients.discard(websocket)
+        logger.info(f"Client disconnected. Total clients: {len(self.clients)}")
+    
+    async def send_to_client(self, websocket, data):
+        """Send data to a specific client"""
+        if not WEBSOCKETS_AVAILABLE:
+            return
+        
+        try:
+            await websocket.send(json.dumps(data))
+        except Exception as e:
+            logger.error(f"Error sending to client: {e}")
+            await self.unregister_client(websocket)
+    
+    async def broadcast(self, data):
+        """Broadcast data to all connected clients"""
+        if not WEBSOCKETS_AVAILABLE or not self.clients:
+            return
+            
+        message = json.dumps(data)
+        disconnected = set()
+        
+        for client in self.clients.copy():
+            try:
+                await client.send(message)
+            except Exception as e:
+                logger.error(f"Error broadcasting to client: {e}")
+                disconnected.add(client)
+        
+        # Remove disconnected clients
+        for client in disconnected:
+            self.clients.discard(client)
+    
+    async def send_full_status(self, websocket):
+        """Send complete current status to a client"""
+        if not WEBSOCKETS_AVAILABLE:
+            return
+        
+        status_data = {
+            'type': 'full_status',
+            'agents': list(self.agents.values()),
+            'tasks': list(self.tasks.values()),
+            'logs': self.logs[-100:],  # Last 100 logs
+            'resources': self.system_resources,
+            'claude_processes': list(self.claude_processes.values())
+        }
+        await self.send_to_client(websocket, status_data)
+    
+    async def broadcast_agents_update(self):
+        """Broadcast agents update"""
+        await self.broadcast({
+            'type': 'agents_update',
+            'agents': list(self.agents.values())
+        })
+    
+    async def broadcast_log_entry(self, log_entry):
+        """Broadcast new log entry"""
+        await self.broadcast({
+            'type': 'log_entry',
+            'log': log_entry
+        })
+    
+    async def broadcast_task_update(self, task):
+        """Broadcast task update"""
+        await self.broadcast({
+            'type': 'task_update',
+            'task': task
+        })
+    
+    async def handle_client_message(self, websocket, message):
+        """Handle incoming client messages"""
+        if not WEBSOCKETS_AVAILABLE:
+            return
+        
+        try:
+            data = json.loads(message)
+            msg_type = data.get('type')
+            
+            if msg_type == 'request_status':
+                await self.send_full_status(websocket)
+            elif msg_type == 'ping':
+                await self.send_to_client(websocket, {'type': 'pong'})
+            elif msg_type == 'request_claude_processes':
+                await self.send_to_client(websocket, {
+                    'type': 'claude_processes',
+                    'processes': list(self.claude_processes.values())
+                })
+                
+        except Exception as e:
+            logger.error(f"Error handling client message: {e}")
+            await self.send_to_client(websocket, {
+                'type': 'error',
+                'message': f"Error processing message: {str(e)}"
+            })
+    
+    async def client_handler(self, websocket):
+        """Handle WebSocket client connections"""
+        if not WEBSOCKETS_AVAILABLE:
+            return
+        
+        await self.register_client(websocket)
+        try:
+            async for message in websocket:
+                await self.handle_client_message(websocket, message)
+        except Exception as e:
+            logger.error(f"WebSocket connection error: {e}")
+        finally:
+            await self.unregister_client(websocket)
+    
+    # File monitoring methods
     def start_file_monitoring(self):
         """Start monitoring log files for changes"""
         if self.logs_dir.exists():
@@ -545,13 +680,60 @@ class EnhancedDashboardServer:
     
     def stop_file_monitoring(self):
         """Stop file monitoring"""
-        self.observer.stop()
-        self.observer.join()
+        if self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
+    
+    # Main operation methods
+    async def start_websocket_server(self):
+        """Start the WebSocket server"""
+        if not WEBSOCKETS_AVAILABLE:
+            logger.error("WebSocket server cannot start - websockets not available")
+            return
+        
+        logger.info(f"Starting WebSocket server on port {self.port}")
+        
+        # Initial data load
+        self.load_tasks()
+        self.update_system_resources()
+        self.update_agents_from_processes()
+        
+        # Start task manager if available
+        if self.task_manager:
+            try:
+                self.task_manager.start()
+                logger.info("Task manager started successfully")
+            except Exception as e:
+                logger.warning(f"Could not start task manager: {e}")
+        
+        # Start file monitoring
+        self.start_file_monitoring()
+        
+        # Start periodic updates
+        asyncio.create_task(self.periodic_updates())
+        
+        # Start WebSocket server
+        if serve is None:
+            logger.error("WebSocket serve function not available")
+            return
+            
+        server = serve(
+            self.client_handler,
+            "localhost",
+            self.port,
+            ping_interval=20,
+            ping_timeout=10
+        )
+        
+        logger.info(f"WebSocket server started at ws://localhost:{self.port}")
+        logger.info(f"Monitoring project: {self.project_dir}")
+        
+        await server
     
     def run_monitoring_loop(self):
         """Run the monitoring loop without WebSocket server"""
         self.running = True
-        logger.info("Starting enhanced monitoring loop (no WebSocket)")
+        logger.info("Starting monitoring loop (no WebSocket)")
         
         # Initial data load
         self.load_tasks()
@@ -596,9 +778,42 @@ class EnhancedDashboardServer:
         finally:
             self.shutdown()
     
+    async def periodic_updates(self):
+        """Periodic updates for WebSocket mode"""
+        while self.running:
+            try:
+                # Update system resources
+                self.update_system_resources()
+                if WEBSOCKETS_AVAILABLE and self.clients:
+                    await self.broadcast({
+                        'type': 'resource_update',
+                        'resources': self.system_resources
+                    })
+                
+                # Update agents using enhanced Claude process detection
+                agents_changed = self.update_agents_from_processes()
+                
+                # Reload tasks from file
+                self.load_tasks()
+                
+                # If task manager is available, sync with it
+                if self.task_manager:
+                    task_summary = self.task_manager.get_status_summary()
+                    if WEBSOCKETS_AVAILABLE and self.clients:
+                        await self.broadcast({
+                            'type': 'task_manager_status',
+                            'summary': task_summary
+                        })
+                
+                await asyncio.sleep(5)  # Update every 5 seconds
+                
+            except Exception as e:
+                logger.error(f"Error in periodic updates: {e}")
+                await asyncio.sleep(5)
+    
     def print_status_summary(self):
         """Print a status summary to console"""
-        print(f"\n=== Enhanced OpenCode Dashboard Status ===")
+        print(f"\n=== OpenCode Dashboard Status ===")
         print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Project: {self.project_dir}")
         print(f"Active Claude Processes: {len(self.claude_processes)}")
@@ -621,7 +836,7 @@ class EnhancedDashboardServer:
     
     def shutdown(self):
         """Shutdown the server with cleanup"""
-        logger.info("Shutting down enhanced dashboard server...")
+        logger.info("Shutting down dashboard server...")
         self.running = False
         
         # Stop task manager
@@ -639,38 +854,44 @@ class EnhancedDashboardServer:
 
 
 def main():
-    """Main entry point for enhanced dashboard server"""
+    """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Enhanced OpenCode Agent Dashboard Server')
+    parser = argparse.ArgumentParser(description='Unified OpenCode Agent Dashboard Server')
     parser.add_argument('--port', '-p', type=int, default=8080,
                        help='WebSocket server port (default: 8080)')
     parser.add_argument('--project', type=str, default='.',
                        help='Project directory path')
     parser.add_argument('--monitor-only', action='store_true',
                        help='Run in monitoring mode only (no WebSocket server)')
+    parser.add_argument('--websocket', action='store_true',
+                       help='Force WebSocket mode (will fail if websockets not available)')
     
     args = parser.parse_args()
     
-    server = EnhancedDashboardServer(args.project, args.port)
+    server = UnifiedDashboardServer(args.project, args.port)
     
     # Handle shutdown gracefully
     def signal_handler(signum, frame):
         print("\nShutting down...")
         server.shutdown()
-        exit(0)
+        sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Start the appropriate mode
+    # Decide which mode to run
     try:
-        if args.monitor_only or not WEBSOCKETS_AVAILABLE:
+        if args.websocket and not WEBSOCKETS_AVAILABLE:
+            print("ERROR: --websocket specified but websockets not available")
+            print("Install with: pip install websockets")
+            sys.exit(1)
+        elif args.monitor_only or not WEBSOCKETS_AVAILABLE:
             server.run_monitoring_loop()
         else:
-            # WebSocket mode would go here when websockets is available
-            logger.error("WebSocket mode not yet implemented in this version")
-            server.run_monitoring_loop()
+            # WebSocket mode
+            server.running = True
+            asyncio.run(server.start_websocket_server())
     except KeyboardInterrupt:
         server.shutdown()
 

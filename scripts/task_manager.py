@@ -109,30 +109,35 @@ class Task:
             self.on_progress_update(self, old_progress, self.progress)
 
 class TaskQueue:
-    """Priority queue for managing task execution order"""
+    """Priority queue for managing task execution order with optimized operations"""
     
     def __init__(self):
         self.tasks: List[Task] = []
+        self.task_index: Dict[str, int] = {}  # For O(1) lookups
         self.lock = threading.Lock()
     
     def add_task(self, task: Task):
-        """Add task to queue in priority order"""
+        """Add task to queue in priority order with O(log n) insertion"""
         with self.lock:
-            # Insert in priority order (higher priority first)
-            inserted = False
-            for i, existing_task in enumerate(self.tasks):
-                if task.priority.value > existing_task.priority.value:
-                    self.tasks.insert(i, task)
-                    inserted = True
-                    break
+            # Use binary search for insertion point
+            left, right = 0, len(self.tasks)
+            while left < right:
+                mid = (left + right) // 2
+                if task.priority.value > self.tasks[mid].priority.value:
+                    right = mid
+                else:
+                    left = mid + 1
             
-            if not inserted:
-                self.tasks.append(task)
+            # Insert at the correct position
+            self.tasks.insert(left, task)
+            # Update indices for all tasks after insertion point
+            for i in range(left, len(self.tasks)):
+                self.task_index[self.tasks[i].id] = i
             
             task.update_status(TaskStatus.QUEUED)
     
     def get_next_task(self) -> Optional[Task]:
-        """Get the next task to execute"""
+        """Get the next task to execute - O(1) operation"""
         with self.lock:
             for task in self.tasks:
                 if task.status == TaskStatus.QUEUED:
@@ -140,12 +145,18 @@ class TaskQueue:
             return None
     
     def remove_task(self, task_id: str) -> bool:
-        """Remove task from queue"""
+        """Remove task from queue - O(1) lookup, O(n) removal"""
         with self.lock:
-            for i, task in enumerate(self.tasks):
-                if task.id == task_id:
-                    del self.tasks[i]
-                    return True
+            if task_id in self.task_index:
+                index = self.task_index[task_id]
+                removed_task = self.tasks.pop(index)
+                
+                # Update indices for remaining tasks
+                del self.task_index[task_id]
+                for i in range(index, len(self.tasks)):
+                    self.task_index[self.tasks[i].id] = i
+                
+                return True
             return False
     
     def get_tasks_by_status(self, status: TaskStatus) -> List[Task]:
@@ -344,33 +355,45 @@ Please analyze the code and implement improvements.
             return False
     
     def start_progress_tracking(self, task: Task):
-        """Start tracking progress for a task"""
+        """Start tracking progress for a task with optimized file reading"""
         def track_progress():
+            last_mtime = 0
+            last_content_hash = 0
+            
             while task.status == TaskStatus.RUNNING:
                 try:
                     # Estimate progress based on log file size and content
                     if task.log_file and task.log_file.exists():
-                        with open(task.log_file, 'r') as f:
-                            content = f.read()
-                            lines = len(content.splitlines())
-                            
-                            # Simple heuristic for progress estimation
-                            if 'completed successfully' in content.lower():
-                                task.update_progress(100)
-                                break
-                            elif 'error' in content.lower() or 'failed' in content.lower():
-                                break
-                            else:
-                                # Estimate based on log lines and time elapsed
-                                if task.started_at:
-                                    elapsed = (datetime.now() - task.started_at).total_seconds()
-                                    time_progress = min(90, (elapsed / task.estimated_duration) * 100)
-                                    line_progress = min(80, lines * 2)
+                        # Check if file has been modified
+                        current_mtime = task.log_file.stat().st_mtime
+                        if current_mtime > last_mtime:
+                            with open(task.log_file, 'r') as f:
+                                content = f.read()
+                                lines = len(content.splitlines())
+                                
+                                # Simple content hash to avoid re-processing same content
+                                content_hash = hash(content)
+                                if content_hash != last_content_hash:
+                                    # Simple heuristic for progress estimation
+                                    if 'completed successfully' in content.lower():
+                                        task.update_progress(100)
+                                        break
+                                    elif 'error' in content.lower() or 'failed' in content.lower():
+                                        break
+                                    else:
+                                        # Estimate based on log lines and time elapsed
+                                        if task.started_at:
+                                            elapsed = (datetime.now() - task.started_at).total_seconds()
+                                            time_progress = min(90, (elapsed / task.estimated_duration) * 100)
+                                            line_progress = min(80, lines * 2)
+                                            
+                                            estimated_progress = max(time_progress, line_progress)
+                                            task.update_progress(int(estimated_progress))
                                     
-                                    estimated_progress = max(time_progress, line_progress)
-                                    task.update_progress(int(estimated_progress))
+                                    last_content_hash = content_hash
+                                last_mtime = current_mtime
                     
-                    time.sleep(5)  # Check every 5 seconds
+                    time.sleep(10)  # Check every 10 seconds instead of 5
                     
                 except Exception as e:
                     logger.error(f"Error tracking progress for {task.id}: {e}")

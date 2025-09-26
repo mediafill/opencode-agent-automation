@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-OpenCode Agent Dashboard WebSocket Server
-Provides real-time data to the web dashboard
+Unified OpenCode Agent Dashboard WebSocket Server
+Provides real-time monitoring with enhanced Claude process detection
 """
 
 import asyncio
-import websockets
 import json
 import os
 import time
@@ -14,18 +13,28 @@ import subprocess
 import threading
 import signal
 import re
+import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Set, Optional, Any
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+# Try to import websockets, fallback gracefully if not available
+try:
+    import websockets
+    WEBSOCKETS_AVAILABLE = True
+except ImportError:
+    WEBSOCKETS_AVAILABLE = False
+    print("Warning: websockets not available. Install with: pip install websockets")
+    print("Falling back to monitoring-only mode.")
+
 try:
     from logger import StructuredLogger
     logger = StructuredLogger(__name__)
 except ImportError:
     import logging
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
 
 try:
@@ -104,9 +113,11 @@ class DashboardServer:
             except Exception as e:
                 logger.warning(f"Could not initialize task manager: {e}")
         
-        # Process monitoring
+        # Process monitoring with caching
         self.last_process_scan = datetime.now()
-        self.process_scan_interval = timedelta(seconds=10)
+        self.process_scan_interval = timedelta(seconds=30)  # Reduced from 10 to 30 seconds
+        self.process_cache = {}  # Cache for process information
+        self.cache_timeout = timedelta(seconds=60)  # Cache validity
         
         # Ensure directories exist
         self.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -253,7 +264,16 @@ class DashboardServer:
         return 'pending'
             
     def detect_claude_processes(self) -> Dict[str, Dict]:
-        """Enhanced Claude/OpenCode process detection with detailed information"""
+        """Enhanced Claude/OpenCode process detection with caching for performance"""
+        now = datetime.now()
+        
+        # Check if we can use cached data
+        if (now - self.last_process_scan < self.process_scan_interval and 
+            self.claude_processes and 
+            hasattr(self, 'process_cache') and self.process_cache):
+            return self.claude_processes
+        
+        # Full scan needed
         claude_processes = {}
         
         # Multiple patterns to identify Claude/OpenCode processes
@@ -268,16 +288,24 @@ class DashboardServer:
         ]
         
         try:
+            # Use more efficient process iteration with pre-filtering
             for proc in psutil.process_iter(['pid', 'cmdline', 'create_time', 
                                            'memory_info', 'cpu_percent', 'status', 'name']):
                 try:
                     if not proc.info['cmdline']:
                         continue
-                        
+                    
                     cmdline = ' '.join(proc.info['cmdline']).lower()
                     process_name = proc.info.get('name', '').lower()
                     
-                    # Check if this matches any Claude/OpenCode pattern
+                    # Quick pre-filter: check if any Claude-related term exists
+                    is_claude_related = any(term in cmdline or term in process_name 
+                                          for term in ['opencode', 'claude', 'anthropic'])
+                    
+                    if not is_claude_related:
+                        continue
+                    
+                    # Detailed pattern matching
                     is_claude_process = False
                     process_type = 'unknown'
                     
@@ -329,7 +357,12 @@ class DashboardServer:
                     
         except Exception as e:
             logger.error(f"Error detecting Claude processes: {e}")
-            
+        
+        # Update cache
+        self.claude_processes = claude_processes
+        self.last_process_scan = now
+        self.process_cache = claude_processes
+        
         return claude_processes
     
     def _extract_task_id_from_cmdline(self, cmdline: str) -> Optional[str]:
@@ -434,14 +467,11 @@ class DashboardServer:
         except Exception as e:
             logger.error(f"Error updating system resources: {e}")
             
-    def update_agents_from_processes(self):
-        """Update agent information from running processes and logs using enhanced Claude detection"""
-        # Update Claude processes first
-        self.claude_processes = self.detect_claude_processes()
-        
+    def update_agents_lightweight(self):
+        """Lightweight agent update that doesn't do full process scanning"""
         current_agents = {}
         
-        # Process detected Claude/OpenCode processes
+        # Check existing processes without full scan
         for proc_id, proc_info in self.claude_processes.items():
             agent_id = proc_info.get('task_id', f"agent_{proc_info['pid']}")
             
@@ -473,31 +503,50 @@ class DashboardServer:
                 'process_type': proc_info['type']
             }
         
-        # Check for completed tasks in logs (same as before)
+        # Check for completed tasks in logs
         if self.logs_dir.exists():
             for log_file in self.logs_dir.glob('*.log'):
                 task_id = log_file.stem
                 if task_id not in current_agents:
-                    # Check if this task was completed
                     try:
-                        with open(log_file, 'r') as f:
-                            content = f.read()
-                            if content.strip():
-                                task = self.tasks.get(task_id, {})
-                                agent = {
-                                    'id': task_id,
-                                    'status': 'completed' if 'completed successfully' in content.lower() else 'error',
-                                    'type': task.get('type', 'general'),
-                                    'task': task.get('description', 'Unknown task'),
-                                    'progress': 100 if 'completed successfully' in content.lower() else 0,
-                                    'log_file': str(log_file)
-                                }
-                                
-                                if any(word in content.lower() for word in ['error', 'failed', 'exception']):
-                                    agent['status'] = 'error'
-                                    agent['error'] = self.extract_error_message(content)
-                                
-                                current_agents[task_id] = agent
+                        # Use cached mtime check
+                        cache_key = f"log_status_{task_id}"
+                        current_mtime = log_file.stat().st_mtime
+                        
+                        if (not hasattr(self, '_log_cache') or 
+                            cache_key not in self._log_cache or 
+                            self._log_cache[cache_key]['mtime'] != current_mtime):
+                            
+                            with open(log_file, 'r') as f:
+                                content = f.read()
+                                if content.strip():
+                                    task = self.tasks.get(task_id, {})
+                                    agent = {
+                                        'id': task_id,
+                                        'status': 'completed' if 'completed successfully' in content.lower() else 'error',
+                                        'type': task.get('type', 'general'),
+                                        'task': task.get('description', 'Unknown task'),
+                                        'progress': 100 if 'completed successfully' in content.lower() else 0,
+                                        'log_file': str(log_file)
+                                    }
+                                    
+                                    if any(word in content.lower() for word in ['error', 'failed', 'exception']):
+                                        agent['status'] = 'error'
+                                        agent['error'] = self.extract_error_message(content)
+                                    
+                                    current_agents[task_id] = agent
+                                    
+                                    # Cache the result
+                                    if not hasattr(self, '_log_cache'):
+                                        self._log_cache = {}
+                                    self._log_cache[cache_key] = {
+                                        'mtime': current_mtime,
+                                        'agent': agent
+                                    }
+                        else:
+                            # Use cached agent data
+                            current_agents[task_id] = self._log_cache[cache_key]['agent']
+                            
                     except Exception as e:
                         logger.error(f"Error reading log file {log_file}: {e}")
         
@@ -518,21 +567,21 @@ class DashboardServer:
                 del self.agents[agent_id]
                 changed = True
                 
-        # Broadcast Claude process updates
-        if self.claude_processes:
-            asyncio.create_task(self.broadcast({
-                'type': 'claude_processes_update',
-                'processes': list(self.claude_processes.values())
-            }))
-                
         return changed
         
     def estimate_progress(self, agent_id: str) -> int:
-        """Estimate task progress based on log content and runtime"""
+        """Estimate task progress based on log content and runtime with caching"""
         log_file = self.logs_dir / f'{agent_id}.log'
         if not log_file.exists():
             return 0
-            
+        
+        # Cache key for this log file
+        cache_key = f"{agent_id}_{log_file.stat().st_mtime}"
+        
+        # Check if we have cached progress estimation
+        if hasattr(self, '_progress_cache') and cache_key in self._progress_cache:
+            return self._progress_cache[cache_key]
+        
         try:
             with open(log_file, 'r') as f:
                 content = f.read()
@@ -541,14 +590,28 @@ class DashboardServer:
                 # Simple heuristic: more log lines = more progress
                 # Cap at 90% unless explicitly completed
                 if 'completed successfully' in content.lower():
-                    return 100
+                    progress = 100
                 elif lines > 100:
-                    return min(90, 10 + (lines - 10) // 5)
+                    progress = min(90, 10 + (lines - 10) // 5)
                 elif lines > 10:
-                    return min(50, lines * 2)
+                    progress = min(50, lines * 2)
                 else:
-                    return min(20, lines * 2)
-                    
+                    progress = min(20, lines * 2)
+            
+            # Cache the result
+            if not hasattr(self, '_progress_cache'):
+                self._progress_cache = {}
+            self._progress_cache[cache_key] = progress
+            
+            # Limit cache size
+            if len(self._progress_cache) > 100:
+                # Remove oldest entries (simple FIFO)
+                oldest_keys = list(self._progress_cache.keys())[:20]
+                for key in oldest_keys:
+                    del self._progress_cache[key]
+            
+            return progress
+            
         except Exception:
             return 0
             
@@ -713,10 +776,14 @@ class DashboardServer:
         self.observer.join()
         
     async def periodic_updates(self):
-        """Periodic updates for system resources and agent status with enhanced monitoring"""
+        """Periodic updates for system resources and agent status with optimized scheduling"""
+        update_count = 0
+        
         while True:
             try:
-                # Update system resources
+                update_count += 1
+                
+                # Update system resources every 5 seconds
                 self.update_system_resources()
                 await self.broadcast({
                     'type': 'resource_update',
@@ -724,22 +791,28 @@ class DashboardServer:
                 })
                 
                 # Update agents using enhanced Claude process detection
-                agents_changed = self.update_agents_from_processes()
+                # Only do full process scan every 30 seconds (every 6th update)
+                if update_count % 6 == 0:
+                    agents_changed = self.update_agents_from_processes()
+                else:
+                    # Light update: just check existing processes and logs
+                    agents_changed = self.update_agents_lightweight()
                 
-                # Reload tasks from file
-                self.load_tasks()
+                # Reload tasks from file every 10 seconds (every 2nd update)
+                if update_count % 2 == 0:
+                    self.load_tasks()
                 
-                # If task manager is available, sync with it
-                if self.task_manager:
+                # If task manager is available, sync with it every 15 seconds (every 3rd update)
+                if update_count % 3 == 0 and self.task_manager:
                     task_summary = self.task_manager.get_status_summary()
                     await self.broadcast({
                         'type': 'task_manager_status',
                         'summary': task_summary
                     })
                 
-                # Periodic process scan (less frequent than other updates)
-                now = datetime.now()
-                if now - self.last_process_scan >= self.process_scan_interval:
+                # Periodic detailed process scan every 30 seconds (every 6th update)
+                if update_count % 6 == 0:
+                    now = datetime.now()
                     detailed_processes = self.detect_claude_processes()
                     await self.broadcast({
                         'type': 'detailed_process_scan',

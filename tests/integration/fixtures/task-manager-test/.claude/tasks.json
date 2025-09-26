@@ -1,0 +1,16 @@
+[
+  {
+    "id": "lifecycle_task_1",
+    "type": "testing",
+    "priority": "high",
+    "description": "Run comprehensive tests",
+    "files_pattern": "**/*.test.js"
+  },
+  {
+    "id": "lifecycle_task_2",
+    "type": "documentation",
+    "priority": "medium",
+    "description": "Update API documentation",
+    "files_pattern": "docs/**/*.md"
+  }
+]

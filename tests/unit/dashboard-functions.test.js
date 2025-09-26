@@ -322,6 +322,7 @@ describe('Dashboard Functions Unit Tests', () => {
           { id: '2', status: 'completed', type: 'testing' },
           { id: '3', status: 'error', type: 'performance' }
         );
+        rebuildIndexes();
 
         updateAgentStatusOverview();
 
@@ -350,6 +351,7 @@ describe('Dashboard Functions Unit Tests', () => {
           { id: '2', status: 'in_progress', type: 'testing' },
           { id: '3', status: 'pending', type: 'performance' }
         );
+        rebuildIndexes();
 
         updateTaskQueue();
 
@@ -550,6 +552,7 @@ describe('Dashboard Functions Unit Tests', () => {
           { type: 'testing', id: '2' },
           { type: 'security', id: '3' }
         );
+        rebuildIndexes();
 
         updateTaskDistributionChart();
 
@@ -586,6 +589,7 @@ describe('Dashboard Functions Unit Tests', () => {
             progress: 100
           }
         );
+        rebuildIndexes();
       });
 
       test('filters agents by status', () => {

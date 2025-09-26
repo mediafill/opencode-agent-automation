@@ -12,6 +12,151 @@ let currentTheme = 'light';
 let autoScrollLogs = true;
 let charts = {};
 
+// Performance optimization: Add indexes for O(1) lookups
+let agentsIndex = new Map(); // agent.id -> agent object
+let tasksIndex = new Map(); // task.id -> task object
+let agentsByStatus = new Map(); // status -> Set of agent IDs
+let tasksByStatus = new Map(); // status -> Set of task IDs
+let agentsByType = new Map(); // type -> Set of agent IDs
+let tasksByType = new Map(); // type -> Set of task IDs
+
+// Caching for computed values to avoid N+1 queries
+let cachedAgentStats = null;
+let cachedTaskStats = null;
+let lastStatsUpdate = 0;
+const STATS_CACHE_TTL = 5000; // 5 seconds
+
+// Index maintenance functions
+function rebuildIndexes() {
+    // Clear existing indexes
+    agentsIndex.clear();
+    tasksIndex.clear();
+    agentsByStatus.clear();
+    tasksByStatus.clear();
+    agentsByType.clear();
+    tasksByType.clear();
+
+    // Rebuild agent indexes
+    agents.forEach(agent => {
+        agentsIndex.set(agent.id, agent);
+
+        // Status index
+        if (!agentsByStatus.has(agent.status)) {
+            agentsByStatus.set(agent.status, new Set());
+        }
+        agentsByStatus.get(agent.status).add(agent.id);
+
+        // Type index
+        if (!agentsByType.has(agent.type)) {
+            agentsByType.set(agent.type, new Set());
+        }
+        agentsByType.get(agent.type).add(agent.id);
+    });
+
+    // Rebuild task indexes
+    tasks.forEach(task => {
+        tasksIndex.set(task.id, task);
+
+        // Status index
+        if (!tasksByStatus.has(task.status)) {
+            tasksByStatus.set(task.status, new Set());
+        }
+        tasksByStatus.get(task.status).add(task.id);
+
+        // Type index
+        if (!tasksByType.has(task.type)) {
+            tasksByType.set(task.type, new Set());
+        }
+        tasksByType.get(task.type).add(task.id);
+    });
+
+    // Invalidate cached stats
+    cachedAgentStats = null;
+    cachedTaskStats = null;
+}
+
+// Optimized query functions
+function getAgentsByStatus(status) {
+    return agentsByStatus.get(status) || new Set();
+}
+
+function getTasksByStatus(status) {
+    return tasksByStatus.get(status) || new Set();
+}
+
+function getAgentsByType(type) {
+    return agentsByType.get(type) || new Set();
+}
+
+function getTasksByType(type) {
+    return tasksByType.get(type) || new Set();
+}
+
+function getAgentById(id) {
+    return agentsIndex.get(id);
+}
+
+function getTaskById(id) {
+    return tasksIndex.get(id);
+}
+
+// Cached statistics computation
+function getAgentStats() {
+    const now = Date.now();
+    if (cachedAgentStats && (now - lastStatsUpdate) < STATS_CACHE_TTL) {
+        return cachedAgentStats;
+    }
+
+    const stats = {
+        total: agents.length,
+        byStatus: {},
+        byType: {},
+        completionRate: 0
+    };
+
+    // Use indexes for O(1) lookups instead of O(n) iterations
+    agentsByStatus.forEach((agentIds, status) => {
+        stats.byStatus[status] = agentIds.size;
+    });
+
+    agentsByType.forEach((agentIds, type) => {
+        stats.byType[type] = agentIds.size;
+    });
+
+    const completed = stats.byStatus.completed || 0;
+    stats.completionRate = stats.total > 0 ? Math.round((completed / stats.total) * 100) : 0;
+
+    cachedAgentStats = stats;
+    lastStatsUpdate = now;
+    return stats;
+}
+
+function getTaskStats() {
+    const now = Date.now();
+    if (cachedTaskStats && (now - lastStatsUpdate) < STATS_CACHE_TTL) {
+        return cachedTaskStats;
+    }
+
+    const stats = {
+        total: tasks.length,
+        byStatus: {},
+        byType: {}
+    };
+
+    // Use indexes for O(1) lookups
+    tasksByStatus.forEach((taskIds, status) => {
+        stats.byStatus[status] = taskIds.size;
+    });
+
+    tasksByType.forEach((taskIds, type) => {
+        stats.byType[type] = taskIds.size;
+    });
+
+    cachedTaskStats = stats;
+    lastStatsUpdate = now;
+    return stats;
+}
+
 // WebSocket connection management
 let connectionState = 'disconnected'; // disconnected, connecting, connected, error
 let connectionAttempts = 0;
@@ -276,6 +421,7 @@ function handleWebSocketMessage(data) {
             if (Array.isArray(data.tasks)) {
                 tasks.push(...data.tasks);
             }
+            rebuildIndexes(); // Rebuild indexes after bulk update
             updateAllDisplays();
             addLogEntry({
                 time: new Date(),
@@ -410,6 +556,7 @@ function loadDemoData() {
     );
 
     updateAllDisplays();
+    rebuildIndexes(); // Rebuild indexes after loading demo data
 }
 
 // Update all display components
@@ -423,63 +570,52 @@ function updateAllDisplays() {
     updateTaskDistributionChart();
 }
 
-// Agent status overview
+// Agent status overview - optimized with cached stats
 function updateAgentStatusOverview() {
-    const statusCounts = agents.reduce((acc, agent) => {
-        acc[agent.status] = (acc[agent.status] || 0) + 1;
-        return acc;
-    }, {});
-
-    const totalAgents = agents.length;
-    const completedTasks = agents.filter(a => a.status === 'completed').length;
-    const completionRate = totalAgents > 0 ? Math.round((completedTasks / totalAgents) * 100) : 0;
+    const stats = getAgentStats();
 
     const container = document.getElementById('agentStatusOverview');
     if (container) {
         container.innerHTML = `
             <div class="metric">
                 <span class="metric-label">Total Agents</span>
-                <span class="metric-value">${totalAgents}</span>
+                <span class="metric-value">${stats.total}</span>
             </div>
             <div class="metric">
                 <span class="metric-label">Running</span>
-                <span class="metric-value">${statusCounts.running || 0}</span>
+                <span class="metric-value">${stats.byStatus.running || 0}</span>
             </div>
             <div class="metric">
                 <span class="metric-label">Completed</span>
-                <span class="metric-value">${statusCounts.completed || 0}</span>
+                <span class="metric-value">${stats.byStatus.completed || 0}</span>
             </div>
             <div class="metric">
                 <span class="metric-label">Errors</span>
-                <span class="metric-value">${statusCounts.error || 0}</span>
+                <span class="metric-value">${stats.byStatus.error || 0}</span>
             </div>
             <div class="metric">
                 <span class="metric-label">Pending</span>
-                <span class="metric-value">${statusCounts.pending || 0}</span>
+                <span class="metric-value">${stats.byStatus.pending || 0}</span>
             </div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: ${completionRate}%"></div>
+                <div class="progress-fill" style="width: ${stats.completionRate}%"></div>
             </div>
-            <div class="progress-text">${completionRate}% Complete</div>
+            <div class="progress-text">${stats.completionRate}% Complete</div>
         `;
     }
 }
 
-// Task queue display
+// Task queue display - optimized with cached stats
 function updateTaskQueue() {
-    const tasksByStatus = tasks.reduce((acc, task) => {
-        if (!acc[task.status]) acc[task.status] = [];
-        acc[task.status].push(task);
-        return acc;
-    }, {});
+    const stats = getTaskStats();
 
     let html = '';
-    ['pending', 'in_progress', 'completed', 'blocked'].forEach(status => {
-        const statusTasks = tasksByStatus[status] || [];
-        if (statusTasks.length > 0) {
+    // Only show statuses that have tasks
+    Object.entries(stats.byStatus).forEach(([status, count]) => {
+        if (count > 0) {
             html += `<div class="metric">
                 <span class="metric-label">${status.replace('_', ' ').toUpperCase()}</span>
-                <span class="metric-value">${statusTasks.length}</span>
+                <span class="metric-value">${count}</span>
             </div>`;
         }
     });
@@ -619,12 +755,55 @@ function updateAgent(agentData) {
         return;
     }
 
+    const existingAgent = agentsIndex.get(agentData.id);
+    const oldStatus = existingAgent ? existingAgent.status : null;
+    const oldType = existingAgent ? existingAgent.type : null;
+
     const existingIndex = agents.findIndex(a => a.id === agentData.id);
     if (existingIndex >= 0) {
         agents[existingIndex] = { ...agents[existingIndex], ...agentData };
     } else {
         agents.push(agentData);
     }
+
+    // Update indexes incrementally
+    agentsIndex.set(agentData.id, agents[existingIndex >= 0 ? existingIndex : agents.length - 1]);
+
+    // Update status index
+    if (oldStatus && oldStatus !== agentData.status) {
+        const oldStatusSet = agentsByStatus.get(oldStatus);
+        if (oldStatusSet) {
+            oldStatusSet.delete(agentData.id);
+            if (oldStatusSet.size === 0) {
+                agentsByStatus.delete(oldStatus);
+            }
+        }
+    }
+
+    if (!agentsByStatus.has(agentData.status)) {
+        agentsByStatus.set(agentData.status, new Set());
+    }
+    agentsByStatus.get(agentData.status).add(agentData.id);
+
+    // Update type index
+    if (oldType && oldType !== agentData.type) {
+        const oldTypeSet = agentsByType.get(oldType);
+        if (oldTypeSet) {
+            oldTypeSet.delete(agentData.id);
+            if (oldTypeSet.size === 0) {
+                agentsByType.delete(oldType);
+            }
+        }
+    }
+
+    if (!agentsByType.has(agentData.type)) {
+        agentsByType.set(agentData.type, new Set());
+    }
+    agentsByType.get(agentData.type).add(agentData.id);
+
+    // Invalidate cached stats
+    cachedAgentStats = null;
+
     updateActiveAgents();
     updateAgentStatusOverview();
 }
@@ -636,12 +815,55 @@ function updateTask(taskData) {
         return;
     }
 
+    const existingTask = tasksIndex.get(taskData.id);
+    const oldStatus = existingTask ? existingTask.status : null;
+    const oldType = existingTask ? existingTask.type : null;
+
     const existingIndex = tasks.findIndex(t => t.id === taskData.id);
     if (existingIndex >= 0) {
         tasks[existingIndex] = { ...tasks[existingIndex], ...taskData };
     } else {
         tasks.push(taskData);
     }
+
+    // Update indexes incrementally
+    tasksIndex.set(taskData.id, tasks[existingIndex >= 0 ? existingIndex : tasks.length - 1]);
+
+    // Update status index
+    if (oldStatus && oldStatus !== taskData.status) {
+        const oldStatusSet = tasksByStatus.get(oldStatus);
+        if (oldStatusSet) {
+            oldStatusSet.delete(taskData.id);
+            if (oldStatusSet.size === 0) {
+                tasksByStatus.delete(oldStatus);
+            }
+        }
+    }
+
+    if (!tasksByStatus.has(taskData.status)) {
+        tasksByStatus.set(taskData.status, new Set());
+    }
+    tasksByStatus.get(taskData.status).add(taskData.id);
+
+    // Update type index
+    if (oldType && oldType !== taskData.type) {
+        const oldTypeSet = tasksByType.get(oldType);
+        if (oldTypeSet) {
+            oldTypeSet.delete(taskData.id);
+            if (oldTypeSet.size === 0) {
+                tasksByType.delete(oldType);
+            }
+        }
+    }
+
+    if (!tasksByType.has(taskData.type)) {
+        tasksByType.set(taskData.type, new Set());
+    }
+    tasksByType.get(taskData.type).add(taskData.id);
+
+    // Invalidate cached stats
+    cachedTaskStats = null;
+
     updateTaskQueue();
 }
 
@@ -858,38 +1080,59 @@ function initializeCharts() {
 function updateTaskDistributionChart() {
     if (!charts.taskDistribution) return;
     
-    const typeCounts = agents.reduce((acc, agent) => {
-        acc[agent.type] = (acc[agent.type] || 0) + 1;
-        return acc;
-    }, {});
-
+    const stats = getAgentStats(); // Use cached stats instead of recomputing
+    
     const data = [
-        typeCounts.security || 0,
-        typeCounts.testing || 0,
-        typeCounts.performance || 0,
-        typeCounts.documentation || 0,
-        typeCounts.refactoring || 0
+        stats.byType.security || 0,
+        stats.byType.testing || 0,
+        stats.byType.performance || 0,
+        stats.byType.documentation || 0,
+        stats.byType.refactoring || 0
     ];
 
     charts.taskDistribution.data.datasets[0].data = data;
     charts.taskDistribution.update();
 }
 
-// Filter functions
+// Filter functions - optimized with indexes
 function filterAgents() {
     const statusFilter = document.getElementById('statusFilter')?.value || '';
     const typeFilter = document.getElementById('typeFilter')?.value || '';
     const searchFilter = document.getElementById('searchFilter')?.value.toLowerCase() || '';
 
-    const filteredAgents = agents.filter(agent => {
-        const matchesStatus = !statusFilter || agent.status === statusFilter;
-        const matchesType = !typeFilter || agent.type === typeFilter;
-        const matchesSearch = !searchFilter ||
-            agent.id.toLowerCase().includes(searchFilter) ||
-            agent.task.toLowerCase().includes(searchFilter);
+    let filteredAgentIds = new Set();
 
-        return matchesStatus && matchesType && matchesSearch;
-    });
+    // Start with all agents or filtered by status/type using indexes
+    if (statusFilter && typeFilter) {
+        // Intersection of status and type filters
+        const statusAgents = getAgentsByStatus(statusFilter);
+        const typeAgents = getAgentsByType(typeFilter);
+        filteredAgentIds = new Set([...statusAgents].filter(id => typeAgents.has(id)));
+    } else if (statusFilter) {
+        filteredAgentIds = new Set(getAgentsByStatus(statusFilter));
+    } else if (typeFilter) {
+        filteredAgentIds = new Set(getAgentsByType(typeFilter));
+    } else {
+        // No status/type filter, include all agents
+        agents.forEach(agent => filteredAgentIds.add(agent.id));
+    }
+
+    // Apply search filter if present
+    if (searchFilter) {
+        const searchFiltered = new Set();
+        filteredAgentIds.forEach(agentId => {
+            const agent = getAgentById(agentId);
+            if (agent && fuzzyMatch(searchFilter, [
+                agent.id, agent.task, agent.error || '', agent.type, agent.priority, agent.status
+            ])) {
+                searchFiltered.add(agentId);
+            }
+        });
+        filteredAgentIds = searchFiltered;
+    }
+
+    // Get actual agent objects for rendering
+    const filteredAgents = Array.from(filteredAgentIds).map(id => getAgentById(id)).filter(Boolean);
 
     const container = document.getElementById('activeAgents');
     if (!container) return;
@@ -927,7 +1170,7 @@ function filterAgents() {
 
 // Modal functions
 function showAgentDetails(agentId) {
-    const agent = agents.find(a => a.id === agentId);
+    const agent = getAgentById(agentId); // O(1) lookup instead of O(n)
     if (!agent) return;
 
     const agentLogs = logs.filter(log => log.agent === agentId).slice(-20);
@@ -1107,15 +1350,41 @@ function exportFilteredAgents() {
     const priorityFilter = document.getElementById('priorityFilter')?.value || '';
     const searchFilter = document.getElementById('searchFilter')?.value || '';
     
-    let filteredAgents = agents.filter(agent => {
-        const matchesStatus = !statusFilter || agent.status === statusFilter;
-        const matchesType = !typeFilter || agent.type === typeFilter;
-        const matchesPriority = !priorityFilter || agent.priority === priorityFilter;
-        const matchesSearch = !searchFilter || fuzzyMatch(searchFilter, [
-            agent.id, agent.task, agent.error || '', agent.type, agent.priority, agent.status
-        ]);
-        return matchesStatus && matchesType && matchesPriority && matchesSearch;
-    });
+    let filteredAgentIds = new Set();
+
+    // Use optimized filtering logic
+    if (statusFilter && typeFilter) {
+        const statusAgents = getAgentsByStatus(statusFilter);
+        const typeAgents = getAgentsByType(typeFilter);
+        filteredAgentIds = new Set([...statusAgents].filter(id => typeAgents.has(id)));
+    } else if (statusFilter) {
+        filteredAgentIds = new Set(getAgentsByStatus(statusFilter));
+    } else if (typeFilter) {
+        filteredAgentIds = new Set(getAgentsByType(typeFilter));
+    } else {
+        agents.forEach(agent => filteredAgentIds.add(agent.id));
+    }
+
+    // Apply additional filters
+    if (priorityFilter || searchFilter) {
+        const finalFiltered = new Set();
+        filteredAgentIds.forEach(agentId => {
+            const agent = getAgentById(agentId);
+            if (agent) {
+                const matchesPriority = !priorityFilter || agent.priority === priorityFilter;
+                const matchesSearch = !searchFilter || fuzzyMatch(searchFilter.toLowerCase(), [
+                    agent.id, agent.task, agent.error || '', agent.type, agent.priority, agent.status
+                ]);
+                
+                if (matchesPriority && matchesSearch) {
+                    finalFiltered.add(agentId);
+                }
+            }
+        });
+        filteredAgentIds = finalFiltered;
+    }
+    
+    const filteredAgents = Array.from(filteredAgentIds).map(id => getAgentById(id)).filter(Boolean);
     
     const csvData = [
         ['ID', 'Type', 'Status', 'Priority', 'Progress', 'Task', 'Start Time', 'Error'],
@@ -1155,6 +1424,18 @@ function resetGlobalState() {
     currentTheme = 'light';
     autoScrollLogs = true;
     Object.keys(charts).forEach(key => delete charts[key]);
+    
+    // Clear indexes and caches
+    agentsIndex.clear();
+    tasksIndex.clear();
+    agentsByStatus.clear();
+    tasksByStatus.clear();
+    agentsByType.clear();
+    tasksByType.clear();
+    cachedAgentStats = null;
+    cachedTaskStats = null;
+    lastStatsUpdate = 0;
+    
     websocket = null;
     reconnectInterval = null;
     heartbeatInterval = null;

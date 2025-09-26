@@ -13,6 +13,9 @@
     "test:coverage": "jest --coverage",
     "test:coverage:watch": "jest --coverage --watch",
     "test:coverage:report": "jest --coverage --coverageReporters=text-lcov | npx coveralls",
+    "test:integration": "jest --config tests/integration/jest.config.js",
+    "test:integration:watch": "jest --config tests/integration/jest.config.js --watch",
+    "test:all": "npm run test && npm run test:integration",
     "coverage:open": "open coverage/lcov-report/index.html || xdg-open coverage/lcov-report/index.html",
     "setup": "bash install.sh"
   },

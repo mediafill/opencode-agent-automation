@@ -1,5 +1,6 @@
 #!/bin/bash
 # OpenCode Agent Monitor - Real-time monitoring and status reporting
+# Now integrates with unified dashboard server
 
 # Load configuration
 source "$(dirname "$0")/../config.env" 2>/dev/null || true
@@ -8,6 +9,7 @@ source "$(dirname "$0")/../config.env" 2>/dev/null || true
 PROJECT_DIR="${PROJECT_DIR:-$(pwd)}"
 CLAUDE_DIR="${CLAUDE_DIR:-$PROJECT_DIR/.claude}"
 LOG_DIR="${LOG_DIR:-$CLAUDE_DIR/logs}"
+UNIFIED_SERVER_SCRIPT="$(dirname "$0")/unified_dashboard_server.py"
 
 # Colors for output
 RED='\033[0;31m'
@@ -17,9 +19,88 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Function to get process status
+# Function to start unified dashboard server
+start_dashboard_server() {
+    local mode="${1:-monitor-only}"
+    
+    if [ ! -f "$UNIFIED_SERVER_SCRIPT" ]; then
+        echo -e "${RED}Error:${NC} Unified dashboard server not found at $UNIFIED_SERVER_SCRIPT"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Starting unified dashboard server...${NC}"
+    
+    if [ "$mode" = "websocket" ]; then
+        echo "Starting with WebSocket support on port 8080"
+        python3 "$UNIFIED_SERVER_SCRIPT" --project "$PROJECT_DIR" &
+        DASHBOARD_PID=$!
+        echo "Dashboard server started (PID: $DASHBOARD_PID)"
+        echo "WebSocket available at: ws://localhost:8080"
+        echo "Check logs for any WebSocket connection issues"
+    else
+        echo "Starting in monitoring mode only"
+        python3 "$UNIFIED_SERVER_SCRIPT" --project "$PROJECT_DIR" --monitor-only &
+        DASHBOARD_PID=$!
+        echo "Dashboard server started (PID: $DASHBOARD_PID)"
+    fi
+    
+    # Give server a moment to start
+    sleep 2
+    
+    if ! kill -0 $DASHBOARD_PID 2>/dev/null; then
+        echo -e "${RED}Error:${NC} Dashboard server failed to start"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Function to stop dashboard server
+stop_dashboard_server() {
+    if [ ! -z "$DASHBOARD_PID" ] && kill -0 $DASHBOARD_PID 2>/dev/null; then
+        echo -e "${CYAN}Stopping dashboard server...${NC}"
+        kill $DASHBOARD_PID
+        wait $DASHBOARD_PID 2>/dev/null
+        echo "Dashboard server stopped"
+    fi
+}
+
+# Function to get process status using enhanced detection
 get_agent_status() {
-    local count=$(ps aux | grep "opencode run" | grep -v grep | wc -l)
+    # Use enhanced detection similar to unified server
+    local count=$(python3 -c "
+import psutil
+import re
+
+claude_patterns = [
+    r'opencode.*run',
+    r'claude.*desktop',
+    r'claude.*cli',
+    r'anthropic.*claude',
+    r'python.*opencode',
+    r'node.*opencode',
+    r'opencode-agent',
+    r'\.vscode.*claude',
+    r'cursor.*claude'
+]
+
+count = 0
+for proc in psutil.process_iter(['cmdline', 'name']):
+    try:
+        if not proc.info['cmdline']:
+            continue
+        cmdline = ' '.join(proc.info['cmdline']).lower()
+        process_name = proc.info.get('name', '').lower()
+        
+        for pattern in claude_patterns:
+            if re.search(pattern, cmdline) or re.search(pattern, process_name):
+                count += 1
+                break
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        continue
+
+print(count)
+" 2>/dev/null || echo "0")
     echo "$count"
 }
 
@@ -396,6 +477,91 @@ case "${1:-status}" in
         ;;
 
     dashboard)
+        echo -e "${CYAN}Starting dashboard server in WebSocket mode...${NC}"
+        start_dashboard_server "websocket"
+        if [ $? -eq 0 ]; then
+            echo ""
+            echo "Dashboard server is running with WebSocket support"
+            echo "- Real-time monitoring available via WebSocket connection"
+            echo "- Press Ctrl+C to stop the server"
+            echo ""
+            
+            # Wait for the server process
+            wait $DASHBOARD_PID 2>/dev/null
+        fi
+        ;;
+
+    server)
+        echo -e "${CYAN}Starting dashboard server in monitoring mode...${NC}"
+        start_dashboard_server "monitor-only"
+        if [ $? -eq 0 ]; then
+            echo ""
+            echo "Dashboard server is running in monitoring mode"
+            echo "- Enhanced Claude/OpenCode process detection active"
+            echo "- Press Ctrl+C to stop the server"
+            echo ""
+            
+            # Wait for the server process
+            wait $DASHBOARD_PID 2>/dev/null
+        fi
+        ;;
+
+    enhanced-watch)
+        echo -e "${CYAN}Starting enhanced monitoring with unified server...${NC}"
+        start_dashboard_server "monitor-only"
+        if [ $? -eq 0 ]; then
+            echo ""
+            echo "Enhanced monitoring active - showing live status"
+            echo "Press Ctrl+C to stop"
+            echo ""
+            
+            # Show live status while server runs
+            while kill -0 $DASHBOARD_PID 2>/dev/null; do
+                clear
+                echo "═══════════════════════════════════════════════════════════════"
+                echo "         Enhanced OpenCode Monitor - $(date '+%H:%M:%S')"
+                echo "                    (Powered by Unified Server)"
+                echo "═══════════════════════════════════════════════════════════════"
+                echo ""
+
+                # Enhanced agent count
+                agent_count=$(get_agent_status)
+                echo -e "${CYAN}Detected Agents:${NC} $agent_count processes"
+                echo ""
+
+                # Task status
+                echo -e "${CYAN}Task Status:${NC}"
+                show_task_status
+                echo ""
+
+                # Log analysis
+                echo -e "${CYAN}Agent Logs:${NC}"
+                for log in "$LOG_DIR"/*.log; do
+                    [ -f "$log" ] && analyze_log "$log"
+                done
+                echo ""
+
+                # System resources
+                show_resources
+                echo ""
+                
+                echo "═══════════════════════════════════════════════════════════════"
+                echo "Enhanced monitoring with unified server | Refreshing every 5s"
+                echo "Server PID: $DASHBOARD_PID | Press Ctrl+C to exit"
+
+                sleep 5
+            done
+        fi
+        ;;
+
+    stop)
+        stop_dashboard_server
+        # Also stop any other dashboard servers that might be running
+        pkill -f "unified_dashboard_server.py" 2>/dev/null
+        echo "All dashboard servers stopped"
+        ;;
+
+    generate_dashboard)
         generate_dashboard
         ;;
 
@@ -443,13 +609,22 @@ case "${1:-status}" in
         ;;
 
     *)
-        echo "Usage: $0 {status|watch|dashboard|summary|clean}"
+        echo "Usage: $0 {status|watch|enhanced-watch|dashboard|server|generate_dashboard|summary|clean|stop}"
         echo ""
         echo "Commands:"
-        echo "  status    - Show current agent status"
-        echo "  watch     - Continuous monitoring mode"
-        echo "  dashboard - Generate HTML dashboard"
-        echo "  summary   - Show summary report"
-        echo "  clean     - Clean old log files"
+        echo "  status           - Show current agent status"
+        echo "  watch            - Basic continuous monitoring mode"
+        echo "  enhanced-watch   - Enhanced monitoring with unified server backend"
+        echo "  dashboard        - Start unified server with WebSocket support"
+        echo "  server           - Start unified server in monitoring mode only"
+        echo "  generate_dashboard - Generate static HTML dashboard file"
+        echo "  summary          - Show summary report"
+        echo "  clean            - Clean old log files"
+        echo "  stop             - Stop all running dashboard servers"
+        echo ""
+        echo "Enhanced modes use the unified dashboard server for better process detection"
         ;;
 esac
+
+# Cleanup on exit
+trap stop_dashboard_server EXIT
