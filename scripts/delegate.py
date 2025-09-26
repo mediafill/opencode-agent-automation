@@ -37,7 +37,20 @@ class TaskDelegator:
         self.logs_dir.mkdir(exist_ok=True)
 
     def detect_project_type(self) -> Dict[str, any]:
-        """Detect project type and technology stack"""
+        """
+        Analyze project directory to identify technology stack and development tools.
+        
+        Scans the project root for configuration files, test directories, and CI/CD setup
+        to automatically determine the most appropriate task delegation strategy.
+        
+        Returns:
+            Dict containing project characteristics:
+            - type: Project classification (will be 'unknown' for now, reserved for future use)
+            - languages: List of detected programming languages
+            - frameworks: List of detected frameworks/platforms
+            - has_tests: Boolean indicating presence of test directories
+            - has_ci: Boolean indicating CI/CD pipeline configuration
+        """
         project_info = {
             'type': 'unknown',
             'languages': [],
@@ -46,7 +59,8 @@ class TaskDelegator:
             'has_ci': False
         }
 
-        # Check for common project files
+        # Map configuration files to their corresponding language/framework pairs
+        # This allows us to automatically detect the technology stack without user input
         checks = {
             'package.json': ('javascript', 'node'),
             'requirements.txt': ('python', 'python'),
@@ -57,30 +71,52 @@ class TaskDelegator:
             'composer.json': ('php', 'php'),
         }
 
+        # Scan for each configuration file and record detected technologies
         for file, (lang, framework) in checks.items():
             if (self.project_dir / file).exists():
                 project_info['languages'].append(lang)
                 project_info['frameworks'].append(framework)
 
-        # Check for test directories
+        # Detect test infrastructure by checking for common test directory patterns
+        # This helps determine if testing tasks should be prioritized
         test_dirs = ['test', 'tests', 'spec', '__tests__']
         project_info['has_tests'] = any((self.project_dir / d).exists() for d in test_dirs)
 
-        # Check for CI/CD
+        # Detect CI/CD setup to understand deployment maturity
+        # This influences task priority for production readiness features
         ci_files = ['.github/workflows', '.gitlab-ci.yml', 'Jenkinsfile', '.travis.yml']
         project_info['has_ci'] = any((self.project_dir / f).exists() for f in ci_files)
 
         return project_info
 
     def generate_tasks(self, objective: str) -> List[Dict]:
-        """Generate task list based on objective and project context"""
+        """
+        Generate intelligent task list based on user objective and project analysis.
+        
+        This method implements the core business logic for task delegation by analyzing
+        the user's objective statement and mapping it to appropriate development tasks.
+        It uses keyword detection and contextual analysis to create a prioritized
+        task queue that matches the project's specific needs.
+        
+        Args:
+            objective: User's high-level goal or requirement description
+            
+        Returns:
+            List of task dictionaries, each containing:
+            - id: Unique task identifier with timestamp
+            - type: Task category (e.g., 'security', 'testing', 'frontend')
+            - priority: Urgency level ('high', 'medium', 'low')
+            - description: Detailed task description for the agent
+            - files_pattern: Glob pattern specifying which files to examine
+        """
         project_info = self.detect_project_type()
         tasks = []
 
-        # Parse objective for keywords
+        # Convert objective to lowercase for case-insensitive keyword matching
         objective_lower = objective.lower()
 
-        # Special case: If objective is very specific and detailed, create custom tasks first
+        # Handle detailed objectives by creating custom implementation tasks
+        # Long objectives (>8 words) likely contain specific, actionable requirements
         if len(objective.split()) > 8:  # Long, detailed objectives
             tasks.append({
                 'id': f'custom_objective_{int(time.time())}',
@@ -314,6 +350,120 @@ class TaskDelegator:
                 ]
 
         return tasks
+
+    def generate_tasks_with_opencode(self, objective: str) -> List[Dict]:
+        """
+        Use OpenCode to intelligently analyze objectives and generate appropriate tasks.
+        This replaces hardcoded keyword matching with AI-powered task analysis.
+        """
+        import tempfile
+        import re
+        
+        project_info = self.detect_project_type()
+        
+        # Create a prompt for OpenCode to analyze the objective and generate tasks
+        analysis_prompt = f"""
+Analyze this development objective and break it down into specific, actionable tasks:
+
+OBJECTIVE: {objective}
+
+PROJECT CONTEXT:
+- Languages: {', '.join(project_info['languages']) if project_info['languages'] else 'Unknown'}
+- Frameworks: {', '.join(project_info['frameworks']) if project_info['frameworks'] else 'Unknown'}  
+- Has tests: {project_info['has_tests']}
+- Has CI/CD: {project_info['has_ci']}
+- Project directory: {self.project_dir}
+
+Generate 3-5 specific tasks that would accomplish this objective. For each task, provide:
+- A unique ID (use format: tasktype_timestamp)
+- Task type (choose from: feature, testing, security, performance, documentation, refactoring, monitoring, frontend, backend, api)
+- Priority (high, medium, low)
+- Detailed description of what needs to be done
+- File pattern to focus on (use glob patterns like **/*.py, **/*.js, etc.)
+
+Return ONLY a JSON array of tasks in this exact format:
+[
+  {{
+    "id": "feature_123456",
+    "type": "feature", 
+    "priority": "high",
+    "description": "Specific description of what to implement",
+    "files_pattern": "**/*.{{js,html,css}}"
+  }}
+]
+
+Focus on creating tasks that directly address the stated objective, not generic improvements.
+"""
+
+        try:
+            # Run OpenCode with the analysis prompt
+            result = subprocess.run(
+                ['opencode', 'run', analysis_prompt],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=str(self.project_dir)
+            )
+
+            if result.returncode == 0 and result.stdout:
+                try:
+                    # Extract JSON from OpenCode's response
+                    output = result.stdout.strip()
+                    
+                    # Try to find JSON array in the output
+                    json_match = re.search(r'\[.*?\]', output, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(0)
+                        tasks = json.loads(json_str)
+                        
+                        # Add timestamp to task IDs to ensure uniqueness
+                        timestamp = int(time.time())
+                        for task in tasks:
+                            if 'id' in task and not str(timestamp) in task['id']:
+                                base_id = task['id'].split('_')[0] if '_' in task['id'] else task.get('type', 'task')
+                                task['id'] = f"{base_id}_{timestamp}"
+                        
+                        if hasattr(logger, 'info'):
+                            logger.info(f"Generated {len(tasks)} tasks using OpenCode analysis")
+                        else:
+                            print(f"Generated {len(tasks)} tasks using OpenCode analysis")
+                            
+                        return tasks
+                    else:
+                        if hasattr(logger, 'warning'):
+                            logger.warning("No JSON found in OpenCode response, falling back")
+                        else:
+                            print("Warning: No JSON found in OpenCode response, falling back")
+                except json.JSONDecodeError as e:
+                    if hasattr(logger, 'error'):
+                        logger.error(f"Failed to parse OpenCode JSON response: {e}")
+                    else:
+                        print(f"Error: Failed to parse OpenCode JSON response: {e}")
+            else:
+                if hasattr(logger, 'warning'):
+                    logger.warning(f"OpenCode analysis failed (exit {result.returncode})")
+                else:
+                    print(f"Warning: OpenCode analysis failed (exit {result.returncode})")
+                    
+        except subprocess.TimeoutExpired:
+            if hasattr(logger, 'warning'):
+                logger.warning("OpenCode analysis timed out")
+            else:
+                print("Warning: OpenCode analysis timed out")
+        except Exception as e:
+            if hasattr(logger, 'error'):
+                logger.error(f"Error during OpenCode analysis: {e}")
+            else:
+                print(f"Error during OpenCode analysis: {e}")
+
+        # Fallback to simple task creation if OpenCode analysis fails
+        return [{
+            'id': f'custom_objective_{int(time.time())}',
+            'type': 'custom',
+            'priority': 'high',
+            'description': f'Implement objective: {objective}',
+            'files_pattern': '**/*'
+        }]
 
     def save_tasks(self, tasks: List[Dict]) -> None:
         """Save tasks to JSON file"""

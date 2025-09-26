@@ -152,7 +152,7 @@
 
         .card-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
@@ -691,7 +691,7 @@
             setInterval(refreshData, 10000); // Auto-refresh every 10 seconds
         });
 
-        // WebSocket connection
+        // WebSocket connection with enhanced error handling
         function initializeWebSocket() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${wsProtocol}//localhost:8080/ws`;
@@ -702,6 +702,8 @@
                 websocket.onopen = function() {
                     updateConnectionStatus('connected', 'Connected');
                     console.log('WebSocket connected');
+                    // Request initial data when connected
+                    websocket.send(JSON.stringify({ type: 'request_status' }));
                 };
 
                 websocket.onmessage = function(event) {
@@ -710,15 +712,21 @@
                         handleWebSocketMessage(data);
                     } catch (error) {
                         console.error('Error parsing WebSocket message:', error);
+                        addLogEntry({
+                            time: new Date(),
+                            level: 'error',
+                            message: `WebSocket message parse error: ${error.message}`,
+                            agent: 'dashboard'
+                        });
                     }
                 };
 
-                websocket.onclose = function() {
+                websocket.onclose = function(event) {
                     updateConnectionStatus('disconnected', 'Disconnected');
-                    console.log('WebSocket disconnected');
+                    console.log('WebSocket disconnected', event);
 
-                    // Attempt to reconnect
-                    if (!reconnectInterval) {
+                    // Only attempt reconnect if not a deliberate close
+                    if (event.code !== 1000 && !reconnectInterval) {
                         reconnectInterval = setInterval(() => {
                             updateConnectionStatus('connecting', 'Reconnecting...');
                             initializeWebSocket();
@@ -729,11 +737,23 @@
                 websocket.onerror = function(error) {
                     console.error('WebSocket error:', error);
                     updateConnectionStatus('disconnected', 'Connection Error');
+                    addLogEntry({
+                        time: new Date(),
+                        level: 'error',
+                        message: 'WebSocket connection error',
+                        agent: 'dashboard'
+                    });
                 };
 
             } catch (error) {
                 console.error('Failed to create WebSocket connection:', error);
                 updateConnectionStatus('disconnected', 'Failed to Connect');
+                addLogEntry({
+                    time: new Date(),
+                    level: 'error',
+                    message: `Failed to initialize WebSocket: ${error.message}`,
+                    agent: 'dashboard'
+                });
                 loadDemoData(); // Fall back to demo data
             }
         }
@@ -1383,6 +1403,21 @@
             currentTheme = savedTheme;
             document.body.className = currentTheme;
         }
+
+        // Clean up connections
+        function cleanup() {
+            if (websocket) {
+                websocket.close(1000, 'Dashboard closing');
+                websocket = null;
+            }
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', cleanup);
 
         // Close modal when clicking outside
         document.getElementById('detailModal').addEventListener('click', function(e) {

@@ -8,7 +8,9 @@
   },
   "scripts": {
     "install": "node scripts/install.js",
-    "test": "node scripts/test.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "setup": "bash install.sh"
   },
   "keywords": [
@@ -31,6 +33,13 @@
     "node": ">=14.0.0"
   },
   "dependencies": {},
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/dom": "^9.3.3",
+    "jest-websocket-mock": "^2.5.0"
+  },
   "files": [
     "bin/",
     "scripts/",

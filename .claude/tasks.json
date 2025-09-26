@@ -1,27 +1,20 @@
 {
-  "created_at": "2025-09-26T03:15:48.889912",
-  "total_tasks": 3,
+  "created_at": "2025-09-26T03:29:00.100771",
+  "total_tasks": 2,
   "tasks": [
     {
-      "id": "unit_tests_1758878148",
-      "type": "testing",
+      "id": "feature_impl_1758878940",
+      "type": "feature",
       "priority": "high",
-      "description": "Create comprehensive unit tests for all core functions and classes with edge case coverage",
+      "description": "Implement core functionality for: continue building the front end agent task viewer: we started at monitor-dashboard.html",
       "files_pattern": "**/*.{py,js,ts,java,rb,php}"
     },
     {
-      "id": "integration_tests_1758878148",
+      "id": "feature_tests_1758878940",
       "type": "testing",
-      "priority": "medium",
-      "description": "Build integration tests for API endpoints and database interactions",
-      "files_pattern": "test/**/*,tests/**/*,**/*test*"
-    },
-    {
-      "id": "test_coverage_1758878148",
-      "type": "testing",
-      "priority": "medium",
-      "description": "Set up test coverage reporting and ensure minimum 80% coverage target",
-      "files_pattern": "**/*"
+      "priority": "high",
+      "description": "Create comprehensive tests for the new feature: continue building the front end agent task viewer: we started at monitor-dashboard.html",
+      "files_pattern": "test/**/*,tests/**/*"
     }
   ]
 }
