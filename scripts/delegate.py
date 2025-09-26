@@ -13,6 +13,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# Import structured logging
+try:
+    from logger import StructuredLogger
+    logger = StructuredLogger(__name__)
+except ImportError:
+    # Fallback to basic logging if structured logger not available
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
 class TaskDelegator:
     """Manages task delegation to OpenCode agents"""
 

@@ -162,6 +162,8 @@ setup_project() {
     cp "$INSTALL_DIR/scripts/run_agents.sh" "$CLAUDE_DIR/"
     cp "$INSTALL_DIR/scripts/monitor.sh" "$CLAUDE_DIR/"
     cp "$INSTALL_DIR/scripts/delegate.py" "$CLAUDE_DIR/"
+    cp "$INSTALL_DIR/scripts/logger.py" "$CLAUDE_DIR/" 2>/dev/null || true
+    cp "$INSTALL_DIR/scripts/python_logger.py" "$CLAUDE_DIR/" 2>/dev/null || true
 
     # Create main launcher
     cat > "$CLAUDE_DIR/launch.sh" << 'LAUNCH_EOF'
