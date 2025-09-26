@@ -19,7 +19,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
   beforeEach(() => {
     // Reset all global state
     resetGlobalState();
-    
+
     document.body.innerHTML = `
       <div id="connectionStatus"></div>
       <div id="connectionText"></div>
@@ -67,30 +67,30 @@ describe('Enhanced WebSocket Integration Tests', () => {
     test('handles connection timeout', () => {
       jest.useFakeTimers();
       initializeWebSocket();
-      
+
       // Fast-forward time to trigger timeout
       jest.advanceTimersByTime(11000);
-      
+
       expect(mockWebSocket.close).toHaveBeenCalled();
       jest.useRealTimers();
     });
 
     test('implements exponential backoff for reconnection', () => {
       jest.useFakeTimers();
-      
+
       global.WebSocket = jest.fn(() => {
         throw new Error('Connection failed');
       });
 
       initializeWebSocket();
-      
+
       // Should schedule reconnection with increasing delays
       jest.advanceTimersByTime(2000); // First retry after ~1s
       expect(global.WebSocket).toHaveBeenCalledTimes(2);
-      
+
       jest.advanceTimersByTime(4000); // Second retry after ~2s
       expect(global.WebSocket).toHaveBeenCalledTimes(3);
-      
+
       jest.useRealTimers();
     });
 
@@ -104,7 +104,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
       require('../dashboard-functions').maxReconnectAttempts = 2;
 
       initializeWebSocket();
-      
+
       const statusElement = document.getElementById('connectionText');
       setTimeout(() => {
         expect(statusElement.textContent).toContain('Max reconnection attempts');
@@ -116,41 +116,41 @@ describe('Enhanced WebSocket Integration Tests', () => {
   describe('Heartbeat and Health Monitoring', () => {
     test('sends heartbeat ping messages', () => {
       jest.useFakeTimers();
-      
+
       initializeWebSocket();
       mockWebSocket.onopen();
-      
+
       // Advance time to trigger heartbeat
       jest.advanceTimersByTime(30000);
-      
+
       expect(mockWebSocket.send).toHaveBeenCalledWith(
         expect.stringContaining('"type":"ping"')
       );
-      
+
       jest.useRealTimers();
     });
 
     test('detects heartbeat timeout and forces reconnection', () => {
       jest.useFakeTimers();
-      
+
       initializeWebSocket();
       mockWebSocket.onopen();
-      
+
       // Simulate no heartbeat response for extended period
       jest.advanceTimersByTime(70000); // More than 2x heartbeat interval
-      
+
       expect(mockWebSocket.close).toHaveBeenCalledWith(1006, 'Heartbeat timeout');
-      
+
       jest.useRealTimers();
     });
 
     test('updates connection metrics correctly', () => {
       initializeWebSocket();
       mockWebSocket.onopen();
-      
+
       expect(require('../dashboard-functions').connectionMetrics.connectTime).toBeTruthy();
       expect(require('../dashboard-functions').connectionMetrics.reconnectCount).toBe(0);
-      
+
       // Simulate message sending
       const result = sendMessage({ type: 'test' });
       expect(result).toBe(true);
@@ -209,9 +209,9 @@ describe('Enhanced WebSocket Integration Tests', () => {
 
       expect(agents[0].status).toBe('running');
       expect(agents[0].progress).toBe(50);
-      
+
       // Check that status change was logged
-      const statusChangeLog = logs.find(log => 
+      const statusChangeLog = logs.find(log =>
         log.message.includes('status changed from pending to running')
       );
       expect(statusChangeLog).toBeTruthy();
@@ -249,7 +249,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
 
       handleWebSocketMessage(alertMessage);
 
-      const alertLog = logs.find(log => 
+      const alertLog = logs.find(log =>
         log.message.includes('High memory usage detected') && log.level === 'error'
       );
       expect(alertLog).toBeTruthy();
@@ -302,7 +302,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
   describe('Connection State Management', () => {
     test('handles normal WebSocket closure', () => {
       initializeWebSocket();
-      
+
       const closeEvent = { code: 1000, reason: 'Normal closure' };
       mockWebSocket.onclose(closeEvent);
 
@@ -312,23 +312,23 @@ describe('Enhanced WebSocket Integration Tests', () => {
 
     test('handles abnormal WebSocket closure with reconnection', () => {
       jest.useFakeTimers();
-      
+
       initializeWebSocket();
       mockWebSocket.onopen();
-      
+
       const closeEvent = { code: 1006, reason: 'Connection lost' };
       mockWebSocket.onclose(closeEvent);
 
       // Should attempt reconnection
       jest.advanceTimersByTime(2000);
       expect(global.WebSocket).toHaveBeenCalledTimes(2);
-      
+
       jest.useRealTimers();
     });
 
     test('handles WebSocket errors gracefully', () => {
       initializeWebSocket();
-      
+
       const errorEvent = new Error('WebSocket error');
       mockWebSocket.onerror(errorEvent);
 
@@ -340,30 +340,30 @@ describe('Enhanced WebSocket Integration Tests', () => {
     test('tracks connection uptime', () => {
       jest.useFakeTimers();
       const startTime = Date.now();
-      
+
       initializeWebSocket();
       mockWebSocket.onopen();
-      
+
       jest.advanceTimersByTime(5000);
-      
+
       const metrics = require('../dashboard-functions').connectionMetrics;
       expect(metrics.connectTime.getTime()).toBeCloseTo(startTime, -2);
-      
+
       jest.useRealTimers();
     });
 
     test('tracks message statistics', () => {
       initializeWebSocket();
       mockWebSocket.onopen();
-      
+
       // Send messages
       sendMessage({ type: 'test1' });
       sendMessage({ type: 'test2' });
-      
+
       // Receive messages
       mockWebSocket.onmessage({ data: JSON.stringify({ type: 'pong' }) });
       mockWebSocket.onmessage({ data: JSON.stringify({ type: 'log_entry', log: {} }) });
-      
+
       const metrics = require('../dashboard-functions').connectionMetrics;
       expect(metrics.messagesSent).toBe(2);
       expect(metrics.messagesReceived).toBe(2);
@@ -380,7 +380,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
       // Mock sendMessage to avoid actual WebSocket call
       const originalSendMessage = require('../dashboard-functions').sendMessage;
       const mockSendMessage = jest.fn();
-      
+
       // Temporarily replace sendMessage
       require('../dashboard-functions').sendMessage = mockSendMessage;
       global.websocket = { readyState: 1 };
@@ -474,7 +474,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
   describe('Error Recovery and Resilience', () => {
     test('recovers from malformed JSON messages', () => {
       initializeWebSocket();
-      
+
       const malformedEvent = { data: '{"invalid": json}' };
       mockWebSocket.onmessage(malformedEvent);
 
@@ -484,7 +484,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
       );
 
       // Should add error to logs
-      const errorLog = logs.find(log => 
+      const errorLog = logs.find(log =>
         log.message.includes('WebSocket message parse error')
       );
       expect(errorLog).toBeTruthy();
@@ -513,7 +513,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
       handleWebSocketMessage(invalidUpdate);
 
       expect(console.warn).toHaveBeenCalledWith(
-        'Invalid agent data:', 
+        'Invalid agent data:',
         expect.objectContaining({ status: 'running' })
       );
     });
@@ -527,7 +527,7 @@ describe('Enhanced WebSocket Integration Tests', () => {
       mockWebSocket.onopen();
 
       const result = sendMessage({ type: 'test' });
-      
+
       expect(result).toBe(false);
       expect(console.error).toHaveBeenCalledWith(
         'Error sending WebSocket message:',
@@ -538,10 +538,10 @@ describe('Enhanced WebSocket Integration Tests', () => {
     test('handles WebSocket state changes during operations', () => {
       initializeWebSocket();
       mockWebSocket.onopen();
-      
+
       // Change state to closing mid-operation
       mockWebSocket.readyState = WebSocket.CLOSING;
-      
+
       const result = sendMessage({ type: 'test' });
       expect(result).toBe(false);
       expect(console.warn).toHaveBeenCalledWith(
@@ -553,28 +553,28 @@ describe('Enhanced WebSocket Integration Tests', () => {
   describe('Connection Health Checks', () => {
     test('performs health check for different WebSocket states', () => {
       const healthCheck = require('../dashboard-functions').performConnectionHealthCheck;
-      
+
       // No WebSocket
       global.websocket = null;
       expect(healthCheck()).toBe(false);
-      
+
       // Connecting state
       global.websocket = { readyState: 0 };
       expect(healthCheck()).toBe('connecting');
-      
+
       // Open and healthy
       global.websocket = { readyState: 1 };
       require('../dashboard-functions').connectionMetrics.lastHeartbeat = new Date();
       expect(healthCheck()).toBe('healthy');
-      
+
       // Open but unhealthy (no recent heartbeat)
       require('../dashboard-functions').connectionMetrics.lastHeartbeat = new Date(Date.now() - 60000);
       expect(healthCheck()).toBe('unhealthy');
-      
+
       // Closing state
       global.websocket = { readyState: 2 };
       expect(healthCheck()).toBe('closing');
-      
+
       // Closed state
       global.websocket = { readyState: 3 };
       expect(healthCheck()).toBe('closed');

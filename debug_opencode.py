@@ -18,13 +18,13 @@ TASK: testing | medium | Add tests for task viewer | *test*.js
             text=True,
             timeout=30
         )
-        
+
         print("Return code:", result.returncode)
         print("STDOUT:")
         print(result.stdout)
         print("STDERR:")
         print(result.stderr)
-        
+
         # Test parsing
         if result.stdout:
             lines = result.stdout.strip().split('\n')
@@ -34,7 +34,7 @@ TASK: testing | medium | Add tests for task viewer | *test*.js
                     print(f"Found task line: {line}")
                     parts = line.replace('TASK:', '').strip().split(' | ')
                     print(f"  Parts: {parts}")
-                    
+
     except Exception as e:
         print(f"Error: {e}")
 

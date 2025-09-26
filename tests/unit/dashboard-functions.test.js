@@ -38,7 +38,7 @@ describe('Dashboard Functions Unit Tests', () => {
   beforeEach(() => {
     // Reset all global state
     resetGlobalState();
-    
+
     // Clear DOM
     document.body.innerHTML = '';
     // Create common DOM elements used in tests
@@ -84,16 +84,16 @@ describe('Dashboard Functions Unit Tests', () => {
       test('updates connection status elements correctly', () => {
         const dot = document.getElementById('connectionStatus');
         const text = document.getElementById('connectionText');
-        
+
         updateConnectionStatus('connected', 'Connected');
-        
+
         expect(dot.className).toBe('connection-dot connected');
         expect(text.textContent).toBe('Connected');
       });
 
       test('handles missing DOM elements gracefully', () => {
         document.body.innerHTML = '';
-        
+
         expect(() => {
           updateConnectionStatus('connected', 'Connected');
         }).not.toThrow();
@@ -101,12 +101,12 @@ describe('Dashboard Functions Unit Tests', () => {
 
       test('clears reconnect interval when connected', () => {
         const mockInterval = jest.spyOn(global, 'clearInterval');
-        
+
         // Mock reconnectInterval (this would be set in actual code)
         const intervalId = setInterval(() => {}, 1000);
-        
+
         updateConnectionStatus('connected', 'Connected');
-        
+
         mockInterval.mockRestore();
       });
     });
@@ -450,14 +450,14 @@ describe('Dashboard Functions Unit Tests', () => {
       test('formats Date object correctly', () => {
         const testDate = new Date('2023-01-01T12:30:45Z');
         const result = formatTime(testDate);
-        
+
         expect(typeof result).toBe('string');
         expect(result).not.toBe('N/A');
       });
 
       test('handles string date input', () => {
         const result = formatTime('2023-01-01T12:30:45Z');
-        
+
         expect(typeof result).toBe('string');
         expect(result).not.toBe('N/A');
       });
@@ -472,28 +472,28 @@ describe('Dashboard Functions Unit Tests', () => {
     describe('toggleTheme', () => {
       test('toggles theme from light to dark', () => {
         document.body.className = 'light';
-        
+
         toggleTheme();
-        
+
         expect(document.body.className).toBe('dark');
       });
 
       test('toggles theme from dark to light', () => {
         document.body.className = 'dark';
-        
+
         toggleTheme();
-        
+
         expect(document.body.className).toBe('light');
       });
 
       test('saves theme to localStorage', () => {
         // Test with the global localStorage
         const setItemSpy = jest.spyOn(global.localStorage, 'setItem');
-        
+
         toggleTheme();
-        
+
         expect(setItemSpy).toHaveBeenCalledWith('theme', expect.stringMatching(/^(light|dark)$/));
-        
+
         setItemSpy.mockRestore();
       });
     });
@@ -520,7 +520,7 @@ describe('Dashboard Functions Unit Tests', () => {
           click: jest.fn(),
         };
         createElement.mockReturnValue(mockA);
-        
+
         // Mock document.body methods to avoid DOM node validation issues
         const originalAppendChild = document.body.appendChild;
         const originalRemoveChild = document.body.removeChild;
@@ -530,7 +530,7 @@ describe('Dashboard Functions Unit Tests', () => {
         exportLogs();
 
         expect(mockA.download).toMatch(/opencode-logs-\d{4}-\d{2}-\d{2}\.txt/);
-        
+
         // Restore mocks
         createElement.mockRestore();
         document.body.appendChild = originalAppendChild;
@@ -595,7 +595,7 @@ describe('Dashboard Functions Unit Tests', () => {
 
       test('filters agents by status', () => {
         document.getElementById('statusFilter').value = 'running';
-        
+
         filterAgents();
 
         const container = document.getElementById('activeAgents');
@@ -605,7 +605,7 @@ describe('Dashboard Functions Unit Tests', () => {
 
       test('filters agents by type', () => {
         document.getElementById('typeFilter').value = 'testing';
-        
+
         filterAgents();
 
         const container = document.getElementById('activeAgents');
@@ -615,7 +615,7 @@ describe('Dashboard Functions Unit Tests', () => {
 
       test('filters agents by search term', () => {
         document.getElementById('searchFilter').value = 'authentication';
-        
+
         filterAgents();
 
         const container = document.getElementById('activeAgents');
@@ -625,7 +625,7 @@ describe('Dashboard Functions Unit Tests', () => {
 
       test('shows no match message when no agents match filters', () => {
         document.getElementById('statusFilter').value = 'error';
-        
+
         filterAgents();
 
         const container = document.getElementById('activeAgents');
@@ -710,7 +710,7 @@ describe('Dashboard Functions Unit Tests', () => {
 
         // Load some test data
         loadDemoData();
-        
+
         // Verify functions were called
         spies.forEach(spy => spy.mockRestore());
       });

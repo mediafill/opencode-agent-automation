@@ -14,7 +14,7 @@ describe('Monitor Script Tests', () => {
   const scriptPath = path.join(__dirname, '../../scripts/monitor.sh');
   const testLogDir = path.join(__dirname, '../temp/logs');
   const testClaudeDir = path.join(__dirname, '../temp/.claude');
-  
+
   beforeAll(() => {
     // Create test directories
     if (!fs.existsSync(testLogDir)) {
@@ -51,7 +51,7 @@ describe('Monitor Script Tests', () => {
   describe('Script Availability and Permissions', () => {
     test('script file exists and is executable', () => {
       expect(fs.existsSync(scriptPath)).toBe(true);
-      
+
       const stats = fs.statSync(scriptPath);
       // Check if file has execute permissions
       expect(stats.mode & parseInt('111', 8)).toBeTruthy();
@@ -182,13 +182,13 @@ describe('Monitor Script Tests', () => {
   describe('Dashboard Generation', () => {
     test('dashboard command generates HTML file', async () => {
       const { stdout } = await execAsync(`CLAUDE_DIR="${testClaudeDir}" bash "${scriptPath}" dashboard`);
-      
+
       expect(stdout).toContain('Dashboard generated at:');
       expect(stdout).toContain('dashboard.html');
-      
+
       const dashboardFile = path.join(testClaudeDir, 'dashboard.html');
       expect(fs.existsSync(dashboardFile)).toBe(true);
-      
+
       const htmlContent = fs.readFileSync(dashboardFile, 'utf8');
       expect(htmlContent).toContain('OpenCode Agent Dashboard');
       expect(htmlContent).toContain('Agent Status');
@@ -199,10 +199,10 @@ describe('Monitor Script Tests', () => {
 
     test('generated dashboard contains valid HTML structure', async () => {
       await execAsync(`CLAUDE_DIR="${testClaudeDir}" bash "${scriptPath}" dashboard`);
-      
+
       const dashboardFile = path.join(testClaudeDir, 'dashboard.html');
       const htmlContent = fs.readFileSync(dashboardFile, 'utf8');
-      
+
       expect(htmlContent).toContain('<!DOCTYPE html>');
       expect(htmlContent).toContain('<html>');
       expect(htmlContent).toContain('<head>');
@@ -218,11 +218,11 @@ describe('Monitor Script Tests', () => {
       // Create old log file (simulate 8 days ago)
       const oldLogFile = path.join(testLogDir, 'old.log');
       fs.writeFileSync(oldLogFile, 'old log content');
-      
+
       // Change file modification time to 8 days ago
       const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
       fs.utimesSync(oldLogFile, eightDaysAgo, eightDaysAgo);
-      
+
       // Create recent log file
       const recentLogFile = path.join(testLogDir, 'recent.log');
       fs.writeFileSync(recentLogFile, 'recent log content');
@@ -230,7 +230,7 @@ describe('Monitor Script Tests', () => {
       const { stdout } = await execAsync(`LOG_DIR="${testLogDir}" bash "${scriptPath}" clean`);
       expect(stdout).toContain('Cleaning old logs');
       expect(stdout).toContain('Cleaned logs older than 7 days');
-      
+
       // Check that old file is removed and recent file remains
       expect(fs.existsSync(oldLogFile)).toBe(false);
       expect(fs.existsSync(recentLogFile)).toBe(true);
@@ -317,16 +317,16 @@ describe('Monitor Script Tests', () => {
       fs.writeFileSync(tasksFile, JSON.stringify(testTasks, null, 2));
 
       // Create corresponding log files
-      fs.writeFileSync(path.join(testLogDir, 'security-audit.log'), 
+      fs.writeFileSync(path.join(testLogDir, 'security-audit.log'),
         'Starting security audit\nScanning for vulnerabilities\nTask completed successfully\n');
-      fs.writeFileSync(path.join(testLogDir, 'add-tests.log'), 
+      fs.writeFileSync(path.join(testLogDir, 'add-tests.log'),
         'Creating test files\nAdding unit tests\nRunning test suite\n');
-      fs.writeFileSync(path.join(testLogDir, 'api-integration.log'), 
+      fs.writeFileSync(path.join(testLogDir, 'api-integration.log'),
         'Connecting to API\nError: Authentication failed\nBlocked on API credentials\n');
 
       // Run status command
       const { stdout } = await execAsync(`CLAUDE_DIR="${testClaudeDir}" LOG_DIR="${testLogDir}" bash "${scriptPath}" status`);
-      
+
       expect(stdout).toContain('Total Tasks: 4');
       expect(stdout).toContain('Completed: 1');
       expect(stdout).toContain('In Progress: 1');
@@ -343,18 +343,18 @@ describe('Monitor Script Tests', () => {
       const child = spawn('bash', [scriptPath, 'watch'], {
         env: { ...process.env, LOG_DIR: testLogDir, CLAUDE_DIR: testClaudeDir }
       });
-      
+
       // Give it a moment to start
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       // Kill the process
       child.kill('SIGINT');
-      
+
       // Wait for process to end
       await new Promise(resolve => {
         child.on('exit', resolve);
       });
-      
+
       // Test passes if no errors were thrown
       expect(true).toBe(true);
     });
@@ -363,14 +363,14 @@ describe('Monitor Script Tests', () => {
   describe('Output Formatting', () => {
     test('status output contains proper formatting', async () => {
       const { stdout } = await execAsync(`bash "${scriptPath}" status`);
-      
+
       expect(stdout).toContain('═══');
       expect(stdout).toMatch(/✓|○/); // Check for status symbols
     });
 
     test('summary output is properly formatted', async () => {
       const { stdout } = await execAsync(`bash "${scriptPath}" summary`);
-      
+
       expect(stdout).toContain('═══ Agent Summary Report ═══');
       expect(stdout).toMatch(/✓ Completed:|● Running:|✗ Failed:/);
     });

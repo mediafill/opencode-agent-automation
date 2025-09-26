@@ -24,14 +24,14 @@ class MockWebSocket {
     this.onerror = null;
     this.send = jest.fn();
     this.close = jest.fn();
-    
+
     // Simulate connection after a tick
     setTimeout(() => {
       this.readyState = WebSocket.OPEN;
       if (this.onopen) this.onopen();
     }, 0);
   }
-  
+
   close(code, reason) {
     this.readyState = WebSocket.CLOSED;
     if (this.onclose) this.onclose({ code, reason });
@@ -89,7 +89,7 @@ HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
 beforeEach(() => {
   // Reset all mocks
   jest.clearAllMocks();
-  
+
   // Reset console spies if they exist
   if (global.console.error && global.console.error.mockRestore) {
     global.console.error.mockRestore();
@@ -100,15 +100,15 @@ beforeEach(() => {
   if (global.console.warn && global.console.warn.mockRestore) {
     global.console.warn.mockRestore();
   }
-  
+
   // Mock console methods for each test
   global.console.error = jest.fn();
   global.console.log = jest.fn();
   global.console.warn = jest.fn();
-  
+
   // Clear DOM
   document.body.innerHTML = '';
-  
+
   // Reset localStorage mock
   localStorageMock.getItem.mockClear();
   localStorageMock.setItem.mockClear();

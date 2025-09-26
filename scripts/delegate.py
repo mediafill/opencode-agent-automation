@@ -39,10 +39,10 @@ class TaskDelegator:
     def detect_project_type(self) -> Dict[str, any]:
         """
         Analyze project directory to identify technology stack and development tools.
-        
+
         Scans the project root for configuration files, test directories, and CI/CD setup
         to automatically determine the most appropriate task delegation strategy.
-        
+
         Returns:
             Dict containing project characteristics:
             - type: Project classification (will be 'unknown' for now, reserved for future use)
@@ -104,7 +104,7 @@ class TaskDelegator:
                 print(f"Warning: OpenCode task generation failed: {e}")
                 import traceback
                 traceback.print_exc()
-        
+
         # Fallback to simple task creation
         print("Falling back to simple task generation")
         return self.generate_simple_tasks(objective)
@@ -116,9 +116,9 @@ class TaskDelegator:
         """
         import tempfile
         import re
-        
+
         project_info = self.detect_project_type()
-        
+
         # Create a prompt for OpenCode to analyze the objective and generate tasks
         analysis_prompt = f"""
 Analyze this development objective and break it down into specific, actionable tasks:
@@ -127,7 +127,7 @@ OBJECTIVE: {objective}
 
 PROJECT CONTEXT:
 - Languages: {', '.join(project_info['languages']) if project_info['languages'] else 'Unknown'}
-- Frameworks: {', '.join(project_info['frameworks']) if project_info['frameworks'] else 'Unknown'}  
+- Frameworks: {', '.join(project_info['frameworks']) if project_info['frameworks'] else 'Unknown'}
 - Has tests: {project_info['has_tests']}
 - Has CI/CD: {project_info['has_ci']}
 - Project directory: {self.project_dir}
@@ -143,7 +143,7 @@ Return ONLY a JSON array of tasks in this exact format:
 [
   {{
     "id": "feature_123456",
-    "type": "feature", 
+    "type": "feature",
     "priority": "high",
     "description": "Specific description of what to implement",
     "files_pattern": "**/*.{{js,html,css}}"
@@ -167,25 +167,25 @@ Focus on creating tasks that directly address the stated objective, not generic 
                 try:
                     # Extract JSON from OpenCode's response
                     output = result.stdout.strip()
-                    
+
                     # Try to find JSON array in the output
                     json_match = re.search(r'\[.*?\]', output, re.DOTALL)
                     if json_match:
                         json_str = json_match.group(0)
                         tasks = json.loads(json_str)
-                        
+
                         # Add timestamp to task IDs to ensure uniqueness
                         timestamp = int(time.time())
                         for task in tasks:
                             if 'id' in task and not str(timestamp) in task['id']:
                                 base_id = task['id'].split('_')[0] if '_' in task['id'] else task.get('type', 'task')
                                 task['id'] = f"{base_id}_{timestamp}"
-                        
+
                         if hasattr(logger, 'info'):
                             logger.info(f"Generated {len(tasks)} tasks using OpenCode analysis")
                         else:
                             print(f"Generated {len(tasks)} tasks using OpenCode analysis")
-                            
+
                         return tasks
                     else:
                         if hasattr(logger, 'warning'):
@@ -202,7 +202,7 @@ Focus on creating tasks that directly address the stated objective, not generic 
                     logger.warning(f"OpenCode analysis failed (exit {result.returncode})")
                 else:
                     print(f"Warning: OpenCode analysis failed (exit {result.returncode})")
-                    
+
         except subprocess.TimeoutExpired:
             if hasattr(logger, 'warning'):
                 logger.warning("OpenCode analysis timed out")
@@ -270,7 +270,7 @@ Focus on creating tasks that directly address the stated objective, not generic 
         Uses the same mechanism as run_opencode_agent but waits for response.
         """
         project_info = self.detect_project_type()
-        
+
         # Create a prompt for OpenCode to analyze and generate tasks
         prompt = f"""
 Analyze this development objective and break it down into 3-5 specific, actionable tasks:
@@ -279,13 +279,13 @@ OBJECTIVE: {objective}
 
 PROJECT CONTEXT:
 - Languages: {', '.join(project_info['languages']) if project_info['languages'] else 'Unknown'}
-- Frameworks: {', '.join(project_info['frameworks']) if project_info['frameworks'] else 'Unknown'}  
+- Frameworks: {', '.join(project_info['frameworks']) if project_info['frameworks'] else 'Unknown'}
 - Has tests: {project_info['has_tests']}
 - Project directory: {self.project_dir}
 
 For each task, provide:
 1. A task type (choose from: feature, testing, security, performance, documentation, frontend, backend)
-2. Priority (high, medium, low) 
+2. Priority (high, medium, low)
 3. A specific description of what to implement
 4. File patterns to focus on (like *.html, *.js, *.py, etc.)
 
@@ -311,16 +311,16 @@ Focus on the specific objective, not generic improvements.
             )
 
             print(f"OpenCode returned with code: {result.returncode}")
-            
+
             if result.returncode == 0 and result.stdout:
                 print("OpenCode response received, parsing tasks...")
                 # Parse the structured response
                 tasks = []
                 lines = result.stdout.strip().split('\n')
                 timestamp = int(time.time())
-                
+
                 print(f"Analyzing {len(lines)} lines from OpenCode response")
-                
+
                 for i, line in enumerate(lines):
                     if line.strip().startswith('TASK:'):
                         print(f"Found task line {i}: {line}")
@@ -332,7 +332,7 @@ Focus on the specific objective, not generic improvements.
                                 priority = parts[1].strip()
                                 description = parts[2].strip()
                                 files_pattern = parts[3].strip()
-                                
+
                                 task = {
                                     'id': f'{task_type}_{timestamp}_{len(tasks)}',
                                     'type': task_type,
@@ -355,12 +355,12 @@ Focus on the specific objective, not generic improvements.
                     print("Warning: No valid tasks found in OpenCode response")
                     print("Raw response:")
                     print(result.stdout)
-                    
+
             else:
                 print(f"Warning: OpenCode task generation failed (exit {result.returncode})")
                 if result.stderr:
                     print(f"Error output: {result.stderr}")
-                    
+
         except subprocess.TimeoutExpired:
             print("Warning: OpenCode task generation timed out after 60 seconds")
         except Exception as e:
@@ -372,12 +372,12 @@ Focus on the specific objective, not generic improvements.
     def generate_simple_tasks(self, objective: str) -> List[Dict]:
         """Generate simple tasks when OpenCode analysis isn't available"""
         timestamp = int(time.time())
-        
+
         # Create one main task that directly addresses the objective
         return [{
             'id': f'main_objective_{timestamp}',
             'type': 'feature',
-            'priority': 'high', 
+            'priority': 'high',
             'description': f'Implement: {objective}',
             'files_pattern': '**/*'
         }]

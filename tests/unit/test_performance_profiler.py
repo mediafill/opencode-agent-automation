@@ -39,25 +39,25 @@ except ImportError:
                 self.profiler = None
                 self.monitoring_thread = None
                 self.system_stats = []
-                
+
             def start_profiling(self, func, *args, **kwargs):
                 return func(*args, **kwargs)
-                
+
             def stop_profiling(self):
                 pass
-                
+
             def start_system_monitoring(self):
                 pass
-                
+
             def stop_system_monitoring(self):
                 pass
-                
+
             def generate_reports(self):
                 pass
-        
+
         def profile_dashboard_server(port, duration):
             pass
-            
+
         def profile_task_manager(max_concurrent, duration):
             pass
 

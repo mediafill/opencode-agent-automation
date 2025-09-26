@@ -34,7 +34,7 @@ except ImportError:
 
 class TestTaskStatus(unittest.TestCase):
     """Test TaskStatus enum"""
-    
+
     def test_task_status_values(self):
         """Test all task status enum values"""
         self.assertEqual(TaskStatus.PENDING.value, "pending")
@@ -53,7 +53,7 @@ class TestTaskStatus(unittest.TestCase):
 
 class TestTaskPriority(unittest.TestCase):
     """Test TaskPriority enum"""
-    
+
     def test_task_priority_values(self):
         """Test task priority enum values and ordering"""
         self.assertEqual(TaskPriority.LOW.value, 0)
@@ -69,7 +69,7 @@ class TestTaskPriority(unittest.TestCase):
 
 class TestTask(unittest.TestCase):
     """Test Task class functionality"""
-    
+
     def setUp(self):
         """Set up test fixtures"""
         self.task_data = {
@@ -84,7 +84,7 @@ class TestTask(unittest.TestCase):
     def test_task_initialization(self):
         """Test task initialization with all parameters"""
         task = Task(self.task_data)
-        
+
         self.assertEqual(task.id, 'test_task_123')
         self.assertEqual(task.type, 'testing')
         self.assertEqual(task.priority, TaskPriority.HIGH)
@@ -101,7 +101,7 @@ class TestTask(unittest.TestCase):
         """Test task initialization with minimal data"""
         minimal_data = {'description': 'Minimal task'}
         task = Task(minimal_data)
-        
+
         self.assertTrue(task.id.startswith('task_'))
         self.assertEqual(task.type, 'general')
         self.assertEqual(task.priority, TaskPriority.MEDIUM)
@@ -118,7 +118,7 @@ class TestTask(unittest.TestCase):
         """Test task serialization to dictionary"""
         task = Task(self.task_data)
         task_dict = task.to_dict()
-        
+
         self.assertEqual(task_dict['id'], 'test_task_123')
         self.assertEqual(task_dict['priority'], 'high')
         self.assertEqual(task_dict['status'], 'pending')
@@ -133,16 +133,16 @@ class TestTask(unittest.TestCase):
         callback_called = False
         old_status = None
         new_status = None
-        
+
         def status_callback(task_obj, old_st, new_st):
             nonlocal callback_called, old_status, new_status
             callback_called = True
             old_status = old_st
             new_status = new_st
-        
+
         task.on_status_change = status_callback
         task.update_status(TaskStatus.RUNNING)
-        
+
         self.assertEqual(task.status, TaskStatus.RUNNING)
         self.assertIsNotNone(task.started_at)
         self.assertIsNone(task.completed_at)
@@ -154,7 +154,7 @@ class TestTask(unittest.TestCase):
         """Test updating task status to completed"""
         task = Task(self.task_data)
         task.update_status(TaskStatus.COMPLETED)
-        
+
         self.assertEqual(task.status, TaskStatus.COMPLETED)
         self.assertIsNotNone(task.completed_at)
 
@@ -163,7 +163,7 @@ class TestTask(unittest.TestCase):
         task = Task(self.task_data)
         error_msg = "Test error occurred"
         task.update_status(TaskStatus.FAILED, error_msg)
-        
+
         self.assertEqual(task.status, TaskStatus.FAILED)
         self.assertEqual(task.error, error_msg)
         self.assertIsNotNone(task.completed_at)
@@ -174,16 +174,16 @@ class TestTask(unittest.TestCase):
         callback_called = False
         old_progress = None
         new_progress = None
-        
+
         def progress_callback(task_obj, old_prog, new_prog):
             nonlocal callback_called, old_progress, new_progress
             callback_called = True
             old_progress = old_prog
             new_progress = new_prog
-        
+
         task.on_progress_update = progress_callback
         task.update_progress(75)
-        
+
         self.assertEqual(task.progress, 75)
         self.assertTrue(callback_called)
         self.assertEqual(old_progress, 0)
@@ -192,11 +192,11 @@ class TestTask(unittest.TestCase):
     def test_task_update_progress_boundaries(self):
         """Test task progress boundary conditions"""
         task = Task(self.task_data)
-        
+
         # Test negative progress
         task.update_progress(-10)
         self.assertEqual(task.progress, 0)
-        
+
         # Test progress over 100
         task.update_progress(150)
         self.assertEqual(task.progress, 100)
@@ -205,20 +205,20 @@ class TestTask(unittest.TestCase):
         """Test status callback not called when status unchanged"""
         task = Task(self.task_data)
         callback_called = False
-        
+
         def status_callback(task_obj, old_st, new_st):
             nonlocal callback_called
             callback_called = True
-        
+
         task.on_status_change = status_callback
         task.update_status(TaskStatus.PENDING)  # Same as initial
-        
+
         self.assertFalse(callback_called)
 
 
 class TestTaskQueue(unittest.TestCase):
     """Test TaskQueue class functionality"""
-    
+
     def setUp(self):
         """Set up test fixtures"""
         self.queue = TaskQueue()
@@ -232,7 +232,7 @@ class TestTaskQueue(unittest.TestCase):
         """Test adding a single task to queue"""
         task = Task({'id': 'test_task', 'priority': 'medium'})
         self.queue.add_task(task)
-        
+
         self.assertEqual(len(self.queue.tasks), 1)
         self.assertEqual(task.status, TaskStatus.QUEUED)
         self.assertEqual(self.queue.tasks[0], task)
@@ -243,13 +243,13 @@ class TestTaskQueue(unittest.TestCase):
         low_task = Task({'id': 'low_task', 'priority': 'low'})
         critical_task = Task({'id': 'critical_task', 'priority': 'critical'})
         medium_task = Task({'id': 'medium_task', 'priority': 'medium'})
-        
+
         # Add in random order
         self.queue.add_task(medium_task)
         self.queue.add_task(low_task)
         self.queue.add_task(critical_task)
         self.queue.add_task(high_task)
-        
+
         # Should be ordered by priority: CRITICAL, HIGH, MEDIUM, LOW
         self.assertEqual(self.queue.tasks[0].id, 'critical_task')
         self.assertEqual(self.queue.tasks[1].id, 'high_task')
@@ -260,10 +260,10 @@ class TestTaskQueue(unittest.TestCase):
         """Test getting next task from queue"""
         task1 = Task({'id': 'task1', 'priority': 'low'})
         task2 = Task({'id': 'task2', 'priority': 'high'})
-        
+
         self.queue.add_task(task1)
         self.queue.add_task(task2)
-        
+
         next_task = self.queue.get_next_task()
         self.assertEqual(next_task.id, 'task2')  # High priority first
         self.assertEqual(next_task.status, TaskStatus.QUEUED)
@@ -278,7 +278,7 @@ class TestTaskQueue(unittest.TestCase):
         task = Task({'id': 'running_task', 'priority': 'high'})
         task.update_status(TaskStatus.RUNNING)
         self.queue.tasks.append(task)
-        
+
         next_task = self.queue.get_next_task()
         self.assertIsNone(next_task)
 
@@ -286,9 +286,9 @@ class TestTaskQueue(unittest.TestCase):
         """Test removing task from queue"""
         task = Task({'id': 'removable_task', 'priority': 'medium'})
         self.queue.add_task(task)
-        
+
         result = self.queue.remove_task('removable_task')
-        
+
         self.assertTrue(result)
         self.assertEqual(len(self.queue.tasks), 0)
 
@@ -301,14 +301,14 @@ class TestTaskQueue(unittest.TestCase):
         """Test filtering tasks by status"""
         queued_task = Task({'id': 'queued_task'})
         running_task = Task({'id': 'running_task'})
-        
+
         self.queue.add_task(queued_task)
         self.queue.add_task(running_task)
         running_task.update_status(TaskStatus.RUNNING)
-        
+
         queued_tasks = self.queue.get_tasks_by_status(TaskStatus.QUEUED)
         running_tasks = self.queue.get_tasks_by_status(TaskStatus.RUNNING)
-        
+
         self.assertEqual(len(queued_tasks), 1)
         self.assertEqual(len(running_tasks), 1)
         self.assertEqual(queued_tasks[0].id, 'queued_task')
@@ -318,12 +318,12 @@ class TestTaskQueue(unittest.TestCase):
         """Test getting all tasks from queue"""
         task1 = Task({'id': 'task1'})
         task2 = Task({'id': 'task2'})
-        
+
         self.queue.add_task(task1)
         self.queue.add_task(task2)
-        
+
         all_tasks = self.queue.get_all_tasks()
-        
+
         self.assertEqual(len(all_tasks), 2)
         self.assertIsNot(all_tasks, self.queue.tasks)  # Should be a copy
 
@@ -334,22 +334,22 @@ class TestTaskQueue(unittest.TestCase):
                 task = Task({'id': f'thread_task_{i}'})
                 self.queue.add_task(task)
                 time.sleep(0.001)
-        
+
         threads = []
         for _ in range(3):
             thread = threading.Thread(target=add_tasks)
             threads.append(thread)
             thread.start()
-        
+
         for thread in threads:
             thread.join()
-        
+
         self.assertEqual(len(self.queue.tasks), 30)
 
 
 class TestTaskManager(unittest.TestCase):
     """Test TaskManager class functionality"""
-    
+
     def setUp(self):
         """Set up test fixtures"""
         self.temp_dir = tempfile.mkdtemp()
@@ -381,9 +381,9 @@ class TestTaskManager(unittest.TestCase):
             'priority': 'high',
             'description': 'Test task for manager'
         }
-        
+
         task = self.manager.add_task(task_data)
-        
+
         self.assertEqual(task.id, 'manager_task')
         self.assertEqual(task.status, TaskStatus.QUEUED)
         self.assertEqual(len(self.manager.queue.get_all_tasks()), 1)
@@ -391,31 +391,31 @@ class TestTaskManager(unittest.TestCase):
     def test_add_status_callback(self):
         """Test adding status callback to manager"""
         callback_called = False
-        
+
         def status_callback(task, old_status, new_status):
             nonlocal callback_called
             callback_called = True
-        
+
         self.manager.add_status_callback(status_callback)
         task_data = {'id': 'callback_test_task'}
         task = self.manager.add_task(task_data)
         task.update_status(TaskStatus.RUNNING)
-        
+
         self.assertTrue(callback_called)
 
     def test_add_progress_callback(self):
         """Test adding progress callback to manager"""
         callback_called = False
-        
+
         def progress_callback(task, old_progress, new_progress):
             nonlocal callback_called
             callback_called = True
-        
+
         self.manager.add_progress_callback(progress_callback)
         task_data = {'id': 'progress_test_task'}
         task = self.manager.add_task(task_data)
         task.update_progress(50)
-        
+
         self.assertTrue(callback_called)
 
     @mock.patch('subprocess.Popen')
@@ -424,13 +424,13 @@ class TestTaskManager(unittest.TestCase):
         mock_process = mock.Mock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
-        
+
         task_data = {'id': 'execution_task', 'description': 'Test execution'}
         task = self.manager.add_task(task_data)
-        
+
         with mock.patch('builtins.open', mock.mock_open()):
             result = self.manager.start_task_execution(task)
-        
+
         self.assertTrue(result)
         self.assertEqual(task.status, TaskStatus.RUNNING)
         self.assertIsNotNone(task.process)
@@ -441,12 +441,12 @@ class TestTaskManager(unittest.TestCase):
     def test_start_task_execution_failure(self, mock_popen):
         """Test task execution start failure"""
         mock_popen.side_effect = Exception("Process start failed")
-        
+
         task_data = {'id': 'failed_task'}
         task = self.manager.add_task(task_data)
-        
+
         result = self.manager.start_task_execution(task)
-        
+
         self.assertFalse(result)
         self.assertEqual(task.status, TaskStatus.FAILED)
         self.assertIsNotNone(task.error)
@@ -455,15 +455,15 @@ class TestTaskManager(unittest.TestCase):
         """Test canceling a running task"""
         mock_process = mock.Mock()
         mock_process.poll.return_value = None  # Still running
-        
+
         task_data = {'id': 'cancelable_task'}
         task = self.manager.add_task(task_data)
         task.process = mock_process
         task.update_status(TaskStatus.RUNNING)
         self.manager.running_tasks[task.id] = task
-        
+
         result = self.manager.cancel_task('cancelable_task')
-        
+
         self.assertTrue(result)
         self.assertEqual(task.status, TaskStatus.CANCELLED)
         mock_process.terminate.assert_called_once()
@@ -473,9 +473,9 @@ class TestTaskManager(unittest.TestCase):
         """Test canceling a queued task"""
         task_data = {'id': 'queued_cancelable_task'}
         task = self.manager.add_task(task_data)
-        
+
         result = self.manager.cancel_task('queued_cancelable_task')
-        
+
         self.assertTrue(result)
         self.assertEqual(task.status, TaskStatus.CANCELLED)
 
@@ -491,9 +491,9 @@ class TestTaskManager(unittest.TestCase):
         task.update_status(TaskStatus.FAILED, "Test failure")
         task.retry_count = 1
         self.manager.completed_tasks[task.id] = task
-        
+
         result = self.manager.retry_task('retryable_task')
-        
+
         self.assertTrue(result)
         self.assertEqual(task.status, TaskStatus.QUEUED)
         self.assertEqual(task.retry_count, 2)
@@ -507,9 +507,9 @@ class TestTaskManager(unittest.TestCase):
         task.update_status(TaskStatus.FAILED, "Test failure")
         task.retry_count = 3  # Max retries
         self.manager.completed_tasks[task.id] = task
-        
+
         result = self.manager.retry_task('max_retry_task')
-        
+
         self.assertFalse(result)
 
     def test_retry_successful_task(self):
@@ -518,24 +518,24 @@ class TestTaskManager(unittest.TestCase):
         task = self.manager.add_task(task_data)
         task.update_status(TaskStatus.COMPLETED)
         self.manager.completed_tasks[task.id] = task
-        
+
         result = self.manager.retry_task('successful_task')
-        
+
         self.assertFalse(result)
 
     def test_check_running_tasks_completed(self):
         """Test checking running tasks that completed successfully"""
         mock_process = mock.Mock()
         mock_process.poll.return_value = 0  # Success
-        
+
         task_data = {'id': 'completed_task'}
         task = self.manager.add_task(task_data)
         task.process = mock_process
         task.update_status(TaskStatus.RUNNING)
         self.manager.running_tasks[task.id] = task
-        
+
         self.manager.check_running_tasks()
-        
+
         self.assertEqual(task.status, TaskStatus.COMPLETED)
         self.assertEqual(task.progress, 100)
         self.assertIn('completed_task', self.manager.completed_tasks)
@@ -545,20 +545,20 @@ class TestTaskManager(unittest.TestCase):
         """Test checking running tasks that failed"""
         mock_process = mock.Mock()
         mock_process.poll.return_value = 1  # Failure
-        
+
         task_data = {'id': 'failed_task'}
         task = self.manager.add_task(task_data)
         task.process = mock_process
         task.update_status(TaskStatus.RUNNING)
         self.manager.running_tasks[task.id] = task
-        
+
         # Mock log file
         log_file = self.manager.logs_dir / f"{task.id}.log"
         log_file.write_text("Error: Process failed with error message")
         task.log_file = log_file
-        
+
         self.manager.check_running_tasks()
-        
+
         self.assertEqual(task.status, TaskStatus.FAILED)
         self.assertIsNotNone(task.error)
         self.assertIn('failed_task', self.manager.completed_tasks)
@@ -567,9 +567,9 @@ class TestTaskManager(unittest.TestCase):
         """Test saving and loading task status"""
         task_data = {'id': 'save_load_task', 'description': 'Test save/load'}
         task = self.manager.add_task(task_data)
-        
+
         self.manager.save_task_status()
-        
+
         self.assertTrue(self.manager.status_file.exists())
         with open(self.manager.status_file, 'r') as f:
             data = json.load(f)
@@ -595,12 +595,12 @@ class TestTaskManager(unittest.TestCase):
                 }
             ]
         }
-        
+
         with open(self.manager.tasks_file, 'w') as f:
             json.dump(tasks_data, f)
-        
+
         loaded_tasks = self.manager.load_tasks_from_file()
-        
+
         self.assertEqual(len(loaded_tasks), 2)
         self.assertEqual(loaded_tasks[0].id, 'loaded_task_1')
         self.assertEqual(loaded_tasks[1].id, 'loaded_task_2')
@@ -610,12 +610,12 @@ class TestTaskManager(unittest.TestCase):
         # Add various tasks in different states
         task1 = self.manager.add_task({'id': 'task1', 'type': 'testing'})
         task2 = self.manager.add_task({'id': 'task2', 'type': 'security'})
-        
+
         task2.update_status(TaskStatus.RUNNING)
         self.manager.running_tasks['task2'] = task2
-        
+
         summary = self.manager.get_status_summary()
-        
+
         self.assertIn('total_tasks', summary)
         self.assertIn('running', summary)
         self.assertIn('queued', summary)
@@ -629,18 +629,18 @@ class TestTaskManager(unittest.TestCase):
     def test_start_and_stop_manager(self):
         """Test starting and stopping task manager"""
         self.assertFalse(self.manager.is_running)
-        
+
         self.manager.start()
         self.assertTrue(self.manager.is_running)
         self.assertIsNotNone(self.manager.executor_thread)
-        
+
         self.manager.stop()
         self.assertFalse(self.manager.is_running)
 
 
 class TestTaskManagerIntegration(unittest.TestCase):
     """Integration tests for TaskManager"""
-    
+
     def setUp(self):
         """Set up integration test fixtures"""
         self.temp_dir = tempfile.mkdtemp()
@@ -660,22 +660,22 @@ class TestTaskManagerIntegration(unittest.TestCase):
         mock_process.pid = 12345
         mock_process.poll.return_value = None  # Initially running
         mock_popen.return_value = mock_process
-        
+
         manager = TaskManager(str(self.project_dir), max_concurrent=1)
-        
+
         # Add callbacks to track status changes
         status_changes = []
         progress_updates = []
-        
+
         def status_callback(task, old_status, new_status):
             status_changes.append((task.id, old_status.value, new_status.value))
-        
+
         def progress_callback(task, old_progress, new_progress):
             progress_updates.append((task.id, old_progress, new_progress))
-        
+
         manager.add_status_callback(status_callback)
         manager.add_progress_callback(progress_callback)
-        
+
         # Add task
         task_data = {
             'id': 'lifecycle_task',
@@ -683,35 +683,35 @@ class TestTaskManagerIntegration(unittest.TestCase):
             'priority': 'high',
             'description': 'Full lifecycle test task'
         }
-        
+
         task = manager.add_task(task_data)
-        
+
         # Start execution
         with mock.patch('builtins.open', mock.mock_open()):
             result = manager.start_task_execution(task)
-        
+
         self.assertTrue(result)
         self.assertEqual(task.status, TaskStatus.RUNNING)
-        
+
         # Check running tasks (simulate completion)
         # First call returns None (still running), then simulate completion
         mock_process.poll.return_value = 0  # Now completed
         manager.check_running_tasks()
-        
+
         self.assertEqual(task.status, TaskStatus.COMPLETED)
         self.assertIn(task.id, manager.completed_tasks)
-        
+
         # Verify callbacks were called
         self.assertTrue(len(status_changes) >= 2)
         self.assertIn(('lifecycle_task', 'pending', 'queued'), status_changes)
         self.assertIn(('lifecycle_task', 'queued', 'running'), status_changes)
-        
+
         manager.stop()
 
 
 class TestTaskManagerErrorHandling(unittest.TestCase):
     """Test error handling and edge cases in TaskManager"""
-    
+
     def setUp(self):
         """Set up error handling test fixtures"""
         self.temp_dir = tempfile.mkdtemp()
@@ -731,7 +731,7 @@ class TestTaskManagerErrorHandling(unittest.TestCase):
         # Test with None
         with self.assertRaises(AttributeError):
             Task(None)
-        
+
         # Test with missing required fields handled gracefully
         minimal_task = Task({})
         self.assertIsNotNone(minimal_task.id)
@@ -741,7 +741,7 @@ class TestTaskManagerErrorHandling(unittest.TestCase):
         """Test handling of file system errors"""
         # Make logs directory read-only
         self.manager.logs_dir.chmod(0o444)
-        
+
         try:
             # This should not crash
             self.manager.save_task_status()
@@ -755,9 +755,9 @@ class TestTaskManagerErrorHandling(unittest.TestCase):
         """Test that callback exceptions are handled gracefully"""
         def failing_callback(task, old_status, new_status):
             raise Exception("Callback failed")
-        
+
         self.manager.add_status_callback(failing_callback)
-        
+
         # This should not crash despite callback failure
         task = self.manager.add_task({'id': 'callback_test'})
         task.update_status(TaskStatus.RUNNING)
@@ -767,7 +767,7 @@ class TestTaskManagerErrorHandling(unittest.TestCase):
         # Write invalid JSON
         with open(self.manager.tasks_file, 'w') as f:
             f.write("invalid json content")
-        
+
         # Should not crash
         tasks = self.manager.load_tasks_from_file()
         self.assertEqual(len(tasks), 0)

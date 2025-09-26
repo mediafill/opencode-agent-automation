@@ -16,38 +16,38 @@ class ErrorHandler {
      */
     async retry(fn, context = 'operation', maxRetries = this.maxRetries) {
         let lastError;
-        
+
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 if (this.enableLogging && attempt > 1) {
                     console.log(`Retrying ${context} (attempt ${attempt}/${maxRetries})`);
                 }
-                
+
                 const result = await fn();
-                
+
                 if (this.enableLogging && attempt > 1) {
                     console.log(`${context} succeeded on attempt ${attempt}`);
                 }
-                
+
                 return result;
-                
+
             } catch (error) {
                 lastError = error;
-                
+
                 if (this.enableLogging) {
                     console.warn(`${context} failed on attempt ${attempt}:`, error.message);
                 }
-                
+
                 if (attempt === maxRetries) {
                     break;
                 }
-                
+
                 // Exponential backoff with jitter
                 const delay = this.retryDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
-        
+
         throw lastError;
     }
 
@@ -58,11 +58,11 @@ class ErrorHandler {
         const threshold = options.threshold || 5;
         const timeout = options.timeout || 60000; // 1 minute
         const resetTimeout = options.resetTimeout || 300000; // 5 minutes
-        
+
         let failureCount = 0;
         let lastFailureTime = null;
         let state = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
-        
+
         return async (...args) => {
             if (state === 'OPEN') {
                 if (Date.now() - lastFailureTime > resetTimeout) {
@@ -74,15 +74,15 @@ class ErrorHandler {
                     throw new Error('Circuit breaker is OPEN - service temporarily unavailable');
                 }
             }
-            
+
             try {
                 const result = await Promise.race([
                     fn.apply(this, args),
-                    new Promise((_, reject) => 
+                    new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Operation timeout')), timeout)
                     )
                 ]);
-                
+
                 if (state === 'HALF_OPEN') {
                     state = 'CLOSED';
                     failureCount = 0;
@@ -90,20 +90,20 @@ class ErrorHandler {
                         console.log('Circuit breaker reset to CLOSED');
                     }
                 }
-                
+
                 return result;
-                
+
             } catch (error) {
                 failureCount++;
                 lastFailureTime = Date.now();
-                
+
                 if (failureCount >= threshold) {
                     state = 'OPEN';
                     if (this.enableLogging) {
                         console.log(`Circuit breaker tripped - state: OPEN (failures: ${failureCount})`);
                     }
                 }
-                
+
                 throw error;
             }
         };
@@ -119,11 +119,11 @@ class ErrorHandler {
             if (this.enableLogging) {
                 console.warn(`Primary ${context} failed, attempting fallback:`, primaryError.message);
             }
-            
+
             if (!this.fallbackEnabled) {
                 throw primaryError;
             }
-            
+
             try {
                 const result = await fallbackFn();
                 if (this.enableLogging) {
@@ -137,7 +137,7 @@ class ErrorHandler {
                         fallback: fallbackError.message
                     });
                 }
-                
+
                 // Throw original error with fallback error as context
                 primaryError.fallbackError = fallbackError;
                 throw primaryError;
@@ -180,16 +180,16 @@ class ErrorHandler {
      */
     createRateLimiter(maxCalls, windowMs) {
         const calls = [];
-        
+
         return (fn) => {
             return async (...args) => {
                 const now = Date.now();
-                
+
                 // Remove calls outside the window
                 while (calls.length > 0 && calls[0] <= now - windowMs) {
                     calls.shift();
                 }
-                
+
                 if (calls.length >= maxCalls) {
                     const waitTime = calls[0] + windowMs - now;
                     if (this.enableLogging) {
@@ -198,7 +198,7 @@ class ErrorHandler {
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                     return this.createRateLimiter(maxCalls, windowMs)(fn)(...args);
                 }
-                
+
                 calls.push(now);
                 return await fn.apply(this, args);
             };
@@ -214,25 +214,25 @@ class ErrorHandler {
             timestamp: new Date().toISOString(),
             checks: {}
         };
-        
+
         let allHealthy = true;
-        
+
         for (const check of checks) {
             const startTime = Date.now();
             try {
                 const result = await Promise.race([
                     check.fn(),
-                    new Promise((_, reject) => 
+                    new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Health check timeout')), 5000)
                     )
                 ]);
-                
+
                 results.checks[check.name] = {
                     status: 'healthy',
                     responseTime: Date.now() - startTime,
                     result
                 };
-                
+
             } catch (error) {
                 results.checks[check.name] = {
                     status: 'unhealthy',
@@ -242,7 +242,7 @@ class ErrorHandler {
                 allHealthy = false;
             }
         }
-        
+
         results.status = allHealthy ? 'healthy' : 'degraded';
         return results;
     }
@@ -253,33 +253,33 @@ class ErrorHandler {
     async bulkOperation(items, operation, options = {}) {
         const maxConcurrent = options.maxConcurrent || 5;
         const continueOnError = options.continueOnError !== false;
-        
+
         const results = {
             successful: [],
             failed: [],
             total: items.length
         };
-        
+
         const semaphore = new Array(maxConcurrent).fill(null);
         let index = 0;
-        
+
         const processItem = async (item, itemIndex) => {
             try {
                 const result = await operation(item, itemIndex);
                 results.successful.push({ index: itemIndex, item, result });
             } catch (error) {
                 results.failed.push({ index: itemIndex, item, error: error.message });
-                
+
                 if (!continueOnError) {
                     throw error;
                 }
-                
+
                 if (this.enableLogging) {
                     console.warn(`Bulk operation failed for item ${itemIndex}:`, error.message);
                 }
             }
         };
-        
+
         const worker = async () => {
             while (index < items.length) {
                 const currentIndex = index++;
@@ -288,13 +288,13 @@ class ErrorHandler {
                 }
             }
         };
-        
+
         await Promise.all(semaphore.map(() => worker()));
-        
+
         if (this.enableLogging) {
             console.log(`Bulk operation completed: ${results.successful.length} successful, ${results.failed.length} failed`);
         }
-        
+
         return results;
     }
 }

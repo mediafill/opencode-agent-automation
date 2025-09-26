@@ -1,6 +1,6 @@
 // Comprehensive WebSocket functionality tests for the OpenCode Agent Dashboard
 
-const { 
+const {
     initializeWebSocket,
     handleWebSocketMessage,
     updateConnectionStatus,
@@ -22,22 +22,22 @@ class MockWebSocket {
         this.OPEN = 1;
         this.CLOSING = 2;
         this.CLOSED = 3;
-        
+
         // Event handlers
         this.onopen = null;
         this.onmessage = null;
         this.onclose = null;
         this.onerror = null;
-        
+
         this.sentMessages = [];
-        
+
         // Simulate connection after a short delay
         setTimeout(() => {
             this.readyState = 1; // OPEN
             if (this.onopen) this.onopen();
         }, 10);
     }
-    
+
     send(data) {
         if (this.readyState === 1) {
             this.sentMessages.push(data);
@@ -45,27 +45,27 @@ class MockWebSocket {
         }
         throw new Error('WebSocket is not open');
     }
-    
+
     close(code, reason) {
         this.readyState = 3; // CLOSED
         if (this.onclose) {
             this.onclose({ code: code || 1000, reason: reason || '' });
         }
     }
-    
+
     // Test helper methods
     simulateMessage(data) {
         if (this.onmessage) {
             this.onmessage({ data: JSON.stringify(data) });
         }
     }
-    
+
     simulateError() {
         if (this.onerror) {
             this.onerror(new Error('WebSocket error'));
         }
     }
-    
+
     simulateClose(code = 1000, reason = '') {
         this.readyState = 3;
         if (this.onclose) {
@@ -185,7 +185,7 @@ expect.objectContaining = (expected) => expected;
     let originalSetInterval;
     let originalClearTimeout;
     let originalClearInterval;
-    
+
     beforeEach(() => {
         // Reset global variables
         global.websocket = null;
@@ -199,13 +199,13 @@ expect.objectContaining = (expected) => expected;
             reconnectCount: 0,
             totalDowntime: 0
         };
-        
+
         // Mock timer functions
         originalSetTimeout = global.setTimeout;
         originalSetInterval = global.setInterval;
         originalClearTimeout = global.clearTimeout;
         originalClearInterval = global.clearInterval;
-        
+
         global.setTimeout = (fn, delay) => {
             fn(); // Execute immediately for testing
             return 'timeout_id';
@@ -216,7 +216,7 @@ expect.objectContaining = (expected) => expected;
         global.clearTimeout = () => {};
         global.clearInterval = () => {};
     });
-    
+
     afterEach(() => {
         // Restore original timer functions
         global.setTimeout = originalSetTimeout;
@@ -224,10 +224,10 @@ expect.objectContaining = (expected) => expected;
         global.clearTimeout = originalClearTimeout;
         global.clearInterval = originalClearInterval;
     });
-    
+
     test('should initialize WebSocket connection', (done) => {
         initializeWebSocket();
-        
+
         setTimeout(() => {
             expect(global.websocket).toBeInstanceOf(MockWebSocket);
             expect(global.websocket.url).toBe('ws://localhost:8080/ws');
@@ -235,7 +235,7 @@ expect.objectContaining = (expected) => expected;
             done();
         }, 50);
     });
-    
+
     test('should handle connection timeout', () => {
         global.setTimeout = (fn, delay) => {
             if (delay === 10000) { // Connection timeout
@@ -243,23 +243,23 @@ expect.objectContaining = (expected) => expected;
             }
             return 'timeout_id';
         };
-        
+
         initializeWebSocket();
         expect(global.connectionState).toBe('disconnected');
     });
-    
+
     test('should handle WebSocket messages correctly', () => {
         const testMessage = {
             type: 'agent_update',
             agent: { id: 'test_agent', status: 'running', progress: 50 }
         };
-        
+
         handleWebSocketMessage(testMessage);
-        
+
         const agentExists = global.agents.some(a => a.id === 'test_agent' && a.status === 'running');
         expect(agentExists).toBe(true);
     });
-    
+
     test('should validate message structure', () => {
         const invalidMessages = [
             null,
@@ -268,64 +268,64 @@ expect.objectContaining = (expected) => expected;
             123,
             { /* missing type */ }
         ];
-        
+
         invalidMessages.forEach(msg => {
             expect(() => handleWebSocketMessage(msg)).not.toThrow();
         });
     });
-    
+
     test('should handle heartbeat mechanism', (done) => {
         initializeWebSocket();
-        
+
         setTimeout(() => {
             const heartbeatMessage = { type: 'pong' };
             handleWebSocketMessage(heartbeatMessage);
-            
+
             expect(global.connectionMetrics.messagesReceived).toBeGreaterThan(0);
             expect(global.connectionMetrics.lastHeartbeat).toBeInstanceOf(Date);
             done();
         }, 20);
     });
-    
+
     test('should update connection metrics', () => {
         const initialSent = global.connectionMetrics.messagesSent;
-        
+
         global.websocket = new MockWebSocket('ws://localhost:8080/ws');
         global.websocket.readyState = 1; // OPEN
-        
+
         const result = sendMessage({ type: 'test' });
-        
+
         expect(result).toBe(true);
         expect(global.connectionMetrics.messagesSent).toBe(initialSent + 1);
         expect(global.websocket.sentMessages).toHaveLength(1);
     });
-    
+
     test('should handle connection failures with exponential backoff', () => {
         global.connectionAttempts = 0;
         global.maxReconnectAttempts = 3;
-        
+
         // Simulate connection failure
         global.websocket = new MockWebSocket('ws://localhost:8080/ws');
         global.websocket.simulateClose(1006, 'Connection lost');
-        
+
         expect(global.connectionAttempts).toBeGreaterThan(0);
         expect(global.connectionState).toBe('disconnected');
     });
-    
+
     test('should perform health checks correctly', () => {
         global.websocket = new MockWebSocket('ws://localhost:8080/ws');
         global.websocket.readyState = 1; // OPEN
         global.connectionMetrics.lastHeartbeat = new Date();
-        
+
         const health = performConnectionHealthCheck();
         expect(health).toBe('healthy');
-        
+
         // Test unhealthy connection
         global.connectionMetrics.lastHeartbeat = new Date(Date.now() - 60000); // 1 minute ago
         const unhealthyHealth = performConnectionHealthCheck();
         expect(unhealthyHealth).toBe('unhealthy');
     });
-    
+
     test('should handle various message types', () => {
         const messageTypes = [
             {
@@ -350,12 +350,12 @@ expect.objectContaining = (expected) => expected;
                 alert: { severity: 'warn', message: 'System alert test' }
             }
         ];
-        
+
         messageTypes.forEach(msg => {
             expect(() => handleWebSocketMessage(msg)).not.toThrow();
         });
     });
-    
+
     test('should update performance metrics', () => {
         const performanceData = {
             connectionUptime: 30000,
@@ -363,20 +363,20 @@ expect.objectContaining = (expected) => expected;
             messagesReceived: 15,
             reconnectCount: 1
         };
-        
+
         updatePerformanceMetrics(performanceData);
-        
+
         // Should not throw errors and should handle data appropriately
         expect(global.connectionMetrics.messagesSent).toBeGreaterThanOrEqual(0);
     });
-    
+
     test('should handle demo data fallback', () => {
         loadDemoData();
-        
+
         expect(global.agents).toHaveLength(4);
         expect(global.tasks).toHaveLength(4);
         expect(global.logs).toHaveLength(5);
-        
+
         // Verify demo data structure
         expect(global.agents[0]).toHaveProperty('id');
         expect(global.agents[0]).toHaveProperty('type');
@@ -391,18 +391,18 @@ describe('Connection State Management', () => {
             className: '',
             textContent: ''
         };
-        
+
         global.document.getElementById = () => mockElement;
-        
+
         updateConnectionStatus('connected', 'Connected successfully');
-        
+
         expect(mockElement.className).toBe('connection-dot connected');
         expect(mockElement.textContent).toBe('Connected successfully');
     });
-    
+
     test('should handle missing DOM elements gracefully', () => {
         global.document.getElementById = () => null;
-        
+
         expect(() => updateConnectionStatus('connected', 'Test')).not.toThrow();
     });
 });
@@ -417,13 +417,13 @@ describe('Message Handling', () => {
             progress: 75,
             priority: 'high'
         };
-        
+
         updateAgent(agentData);
-        
+
         const updatedAgent = global.agents.find(a => a.id === 'test_agent_123');
         expect(updatedAgent).toEqual(agentData);
     });
-    
+
     test('should handle task updates', () => {
         const taskData = {
             id: 'task_456',
@@ -432,13 +432,13 @@ describe('Message Handling', () => {
             priority: 'medium',
             description: 'Running unit tests'
         };
-        
+
         updateTask(taskData);
-        
+
         const updatedTask = global.tasks.find(t => t.id === 'task_456');
         expect(updatedTask).toEqual(taskData);
     });
-    
+
     test('should handle log entries', () => {
         const logData = {
             time: new Date(),
@@ -446,14 +446,14 @@ describe('Message Handling', () => {
             message: 'Test error message',
             agent: 'test_agent'
         };
-        
+
         const initialLogCount = global.logs.length;
         addLogEntry(logData);
-        
+
         expect(global.logs).toHaveLength(initialLogCount + 1);
         expect(global.logs[global.logs.length - 1]).toEqual(logData);
     });
-    
+
     test('should limit log entries to 1000', () => {
         // Fill logs with more than 1000 entries
         global.logs = new Array(1001).fill(null).map((_, i) => ({
@@ -462,14 +462,14 @@ describe('Message Handling', () => {
             message: `Log entry ${i}`,
             agent: 'test'
         }));
-        
+
         addLogEntry({
             time: new Date(),
             level: 'info',
             message: 'New log entry',
             agent: 'test'
         });
-        
+
         expect(global.logs).toHaveLength(1001); // Should maintain limit
     });
 });
@@ -477,26 +477,26 @@ describe('Message Handling', () => {
 describe('Error Handling', () => {
     test('should handle JSON parse errors gracefully', () => {
         global.websocket = new MockWebSocket('ws://localhost:8080/ws');
-        
+
         // Simulate invalid JSON
         const invalidEvent = { data: 'invalid json {' };
-        
+
         expect(() => {
             global.websocket.onmessage(invalidEvent);
         }).not.toThrow();
     });
-    
+
     test('should handle WebSocket send errors', () => {
         global.websocket = new MockWebSocket('ws://localhost:8080/ws');
         global.websocket.readyState = 0; // CONNECTING (not open)
-        
+
         const result = sendMessage({ type: 'test' });
         expect(result).toBe(false);
     });
-    
+
     test('should handle missing WebSocket', () => {
         global.websocket = null;
-        
+
         const result = sendMessage({ type: 'test' });
         expect(result).toBe(false);
     });
@@ -506,43 +506,43 @@ describe('Integration Tests', () => {
     test('should handle complete connection lifecycle', (done) => {
         // Initialize connection
         initializeWebSocket();
-        
+
         setTimeout(() => {
             expect(global.connectionState).toBe('connected');
-            
+
             // Send a message
             const messageResult = sendMessage({ type: 'request_status' });
             expect(messageResult).toBe(true);
-            
+
             // Simulate receiving data
             const testData = {
                 type: 'full_status',
                 agents: [{ id: 'agent1', status: 'running' }],
                 tasks: [{ id: 'task1', status: 'pending' }]
             };
-            
+
             handleWebSocketMessage(testData);
-            
+
             expect(global.agents).toHaveLength(1);
             expect(global.tasks).toHaveLength(1);
-            
+
             // Close connection
             global.websocket.close();
             expect(global.connectionState).toBe('disconnected');
-            
+
             done();
         }, 50);
     });
-    
+
     test('should handle reconnection scenarios', () => {
         global.connectionAttempts = 0;
         global.maxReconnectAttempts = 5;
-        
+
         initializeWebSocket();
-        
+
         // Simulate connection drop
         global.websocket.simulateClose(1006, 'Connection lost');
-        
+
         expect(global.connectionAttempts).toBeGreaterThan(0);
         expect(global.connectionAttempts).toBeLessThanOrEqual(5);
     });
@@ -551,7 +551,7 @@ describe('Integration Tests', () => {
 // Run tests if this file is executed directly
 if (require.main === module) {
     console.log('Running WebSocket tests...');
-    
+
     // Simple test runner
     const runTest = (testName, testFn) => {
         try {
@@ -561,13 +561,13 @@ if (require.main === module) {
             console.error(`❌ ${testName} failed:`, error.message);
         }
     };
-    
+
     // Run a few key tests
     runTest('WebSocket initialization', () => {
         initializeWebSocket();
         if (!global.websocket) throw new Error('WebSocket not initialized');
     });
-    
+
     runTest('Message handling', () => {
         const testMessage = {
             type: 'agent_update',
@@ -576,12 +576,12 @@ if (require.main === module) {
         handleWebSocketMessage(testMessage);
         if (global.agents.length === 0) throw new Error('Agent not added');
     });
-    
+
     runTest('Demo data loading', () => {
         loadDemoData();
         if (global.agents.length === 0) throw new Error('Demo data not loaded');
     });
-    
+
     console.log('WebSocket tests completed!');
 }
 

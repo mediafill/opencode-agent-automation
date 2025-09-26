@@ -54,7 +54,7 @@ describe('Task Manager Integration Tests', () => {
           files_pattern: '**/*.test.js'
         },
         {
-          id: 'lifecycle_task_2', 
+          id: 'lifecycle_task_2',
           type: 'documentation',
           priority: 'medium',
           description: 'Update API documentation',
@@ -79,7 +79,7 @@ describe('Task Manager Integration Tests', () => {
 
       // Start monitoring
       const statusInterval = setInterval(checkStatus, 500);
-      
+
       try {
         // Start the task manager in test mode
         const taskManagerScript = path.join(__dirname, '..', '..', 'scripts', 'task_manager.py');
@@ -100,18 +100,18 @@ describe('Task Manager Integration Tests', () => {
 
         expect(finalTasks).toHaveLength(2);
         expect(Object.keys(finalStatus)).toHaveLength(2);
-        
+
         // Check that both tasks have status entries
         expect(finalStatus).toHaveProperty('lifecycle_task_1');
         expect(finalStatus).toHaveProperty('lifecycle_task_2');
-        
+
         // Verify status progression occurred
         expect(statusChanges.length).toBeGreaterThan(0);
-        
+
         // Check that high priority task was processed first or concurrently
         const task1Status = finalStatus.lifecycle_task_1;
         const task2Status = finalStatus.lifecycle_task_2;
-        
+
         expect(['pending', 'queued', 'running', 'completed', 'failed']).toContain(task1Status.status);
         expect(['pending', 'queued', 'running', 'completed', 'failed']).toContain(task2Status.status);
       } finally {
@@ -152,7 +152,7 @@ describe('Task Manager Integration Tests', () => {
         try {
           const status = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
           Object.entries(status).forEach(([taskId, taskStatus]) => {
-            if (taskStatus.status === 'running' && 
+            if (taskStatus.status === 'running' &&
                 !processingOrder.some(item => item.taskId === taskId && item.status === 'running')) {
               processingOrder.push({
                 taskId,
@@ -171,8 +171,8 @@ describe('Task Manager Integration Tests', () => {
       try {
         const taskManagerScript = path.join(__dirname, '..', '..', 'scripts', 'task_manager.py');
         taskManagerProcess = spawn('python3', [
-          taskManagerScript, 
-          '--test-mode', 
+          taskManagerScript,
+          '--test-mode',
           '--project-dir', testProjectDir,
           '--max-concurrent', '1' // Force sequential processing
         ], {
@@ -180,7 +180,7 @@ describe('Task Manager Integration Tests', () => {
         });
 
         await new Promise(resolve => setTimeout(resolve, 6000));
-        
+
         clearInterval(monitorInterval);
 
         // Critical priority should be processed first
@@ -248,10 +248,10 @@ describe('Task Manager Integration Tests', () => {
       const monitorConcurrency = async () => {
         try {
           const status = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
-          const currentlyRunning = Object.keys(status).filter(taskId => 
+          const currentlyRunning = Object.keys(status).filter(taskId =>
             status[taskId].status === 'running'
           );
-          
+
           maxConcurrent.value = Math.max(maxConcurrent.value, currentlyRunning.length);
           currentlyRunning.forEach(taskId => runningTasks.add(taskId));
         } catch (e) {
@@ -265,7 +265,7 @@ describe('Task Manager Integration Tests', () => {
         const taskManagerScript = path.join(__dirname, '..', '..', 'scripts', 'task_manager.py');
         taskManagerProcess = spawn('python3', [
           taskManagerScript,
-          '--test-mode', 
+          '--test-mode',
           '--project-dir', testProjectDir,
           '--max-concurrent', '3'
         ], {
@@ -273,7 +273,7 @@ describe('Task Manager Integration Tests', () => {
         });
 
         await new Promise(resolve => setTimeout(resolve, 8000));
-        
+
         clearInterval(concurrencyInterval);
 
         // Should have processed multiple tasks
@@ -289,7 +289,7 @@ describe('Task Manager Integration Tests', () => {
       const tasks = Array.from({ length: 10 }, (_, i) => ({
         id: `limit_test_task_${i + 1}`,
         type: 'testing',
-        priority: 'medium',  
+        priority: 'medium',
         description: `Limit test task ${i + 1}`,
         files_pattern: `test${i + 1}/**/*.js`
       }));
@@ -323,7 +323,7 @@ describe('Task Manager Integration Tests', () => {
         });
 
         await new Promise(resolve => setTimeout(resolve, 10000));
-        
+
         clearInterval(limitInterval);
 
         // Allow some tolerance for timing, but should generally respect limit
@@ -375,16 +375,16 @@ describe('Task Manager Integration Tests', () => {
         });
 
         await new Promise(resolve => setTimeout(resolve, 6000));
-        
+
         clearInterval(progressInterval);
 
         expect(progressUpdates.length).toBeGreaterThan(1);
-        
+
         // Check progress progression
         const progressValues = progressUpdates.map(u => u.progress || 0);
         const maxProgress = Math.max(...progressValues);
         const minProgress = Math.min(...progressValues);
-        
+
         expect(maxProgress).toBeGreaterThanOrEqual(minProgress);
         expect(maxProgress).toBeLessThanOrEqual(100);
         expect(minProgress).toBeGreaterThanOrEqual(0);
@@ -403,7 +403,7 @@ describe('Task Manager Integration Tests', () => {
         steps: [
           'Initialize environment',
           'Scan files',
-          'Process data', 
+          'Process data',
           'Generate report',
           'Cleanup'
         ]
@@ -440,12 +440,12 @@ describe('Task Manager Integration Tests', () => {
         });
 
         await new Promise(resolve => setTimeout(resolve, 8000));
-        
+
         clearInterval(stepInterval);
 
         expect(stepUpdates.length).toBeGreaterThan(0);
         // Should have some meaningful step descriptions
-        expect(stepUpdates.some(step => 
+        expect(stepUpdates.some(step =>
           typeof step === 'string' && step.length > 5
         )).toBe(true);
       } finally {
@@ -513,11 +513,11 @@ describe('Task Manager Integration Tests', () => {
 
       // Check status was updated
       const statusAfterInterrupt = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
-      
+
       // Restart task manager
       taskManagerProcess = spawn('python3', [
         taskManagerScript,
-        '--test-mode', 
+        '--test-mode',
         '--project-dir', testProjectDir,
         '--resume'
       ], {
@@ -527,7 +527,7 @@ describe('Task Manager Integration Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       const finalStatus = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
-      
+
       expect(finalStatus).toHaveProperty('interrupted_task');
       // Task should either be completed or marked as failed due to interruption
       expect(['completed', 'failed', 'cancelled', 'running']).toContain(finalStatus.interrupted_task.status);

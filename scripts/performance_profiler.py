@@ -14,17 +14,21 @@ from pathlib import Path
 import argparse
 import sys
 from datetime import datetime
+from typing import Optional
 
 class PerformanceProfiler:
     """Performance profiling and monitoring tool"""
 
-    def __init__(self, output_dir: str = None):
+    def __init__(self, output_dir: Optional[str] = None):
         self.output_dir = Path(output_dir) if output_dir else Path.cwd() / "performance_reports"
         self.output_dir.mkdir(exist_ok=True)
         self.is_profiling = False
         self.profiler = None
         self.monitoring_thread = None
         self.system_stats = []
+        # Cache for network monitoring optimization
+        self._net_interfaces = None
+        self._last_net_time = 0
 
     def start_profiling(self, target_function, *args, **kwargs):
         """Start profiling a specific function"""
@@ -49,7 +53,8 @@ class PerformanceProfiler:
             return
 
         self.is_profiling = False
-        self.profiler.disable()
+        if self.profiler:
+            self.profiler.disable()
 
         # Stop system monitoring
         self.stop_system_monitoring()
@@ -64,16 +69,41 @@ class PerformanceProfiler:
         def monitor():
             while self.is_profiling:
                 try:
+                    # Cache network interfaces to avoid repeated expensive calls
+                    # Network interface enumeration is costly, so we cache it
+                    if not hasattr(self, '_net_interfaces'):
+                        self._net_interfaces = psutil.net_io_counters(pernic=True)
+                        self._last_net_time = time.time()
+
+                    # Only refresh network stats every 2 seconds to reduce overhead
+                    # Network I/O monitoring is expensive, so we throttle it
+                    current_time = time.time()
+                    if current_time - self._last_net_time > 2.0:
+                        self._net_interfaces = psutil.net_io_counters(pernic=True)
+                        self._last_net_time = current_time
+
+                    # Calculate network IO more efficiently
+                    # Sum bytes sent/received across all interfaces
+                    network_io = sum(
+                        (iface.bytes_sent + iface.bytes_recv)
+                        for iface in self._net_interfaces.values()
+                        if hasattr(iface, 'bytes_sent') and hasattr(iface, 'bytes_recv')
+                    ) if self._net_interfaces else 0
+
+                    # Get disk IO counters safely
+                    disk_counters = psutil.disk_io_counters()
+                    disk_io = (disk_counters.read_bytes + disk_counters.write_bytes) if disk_counters else 0
+
                     stats = {
-                        'timestamp': time.time(),
-                        'cpu_percent': psutil.cpu_percent(interval=0.1),
+                        'timestamp': current_time,
+                        'cpu_percent': psutil.cpu_percent(interval=0.5),  # Increased from 0.1 to 0.5
                         'memory_percent': psutil.virtual_memory().percent,
                         'memory_used': psutil.virtual_memory().used,
-                        'disk_io': (psutil.disk_io_counters().read_bytes + psutil.disk_io_counters().write_bytes) if psutil.disk_io_counters() else 0,
-                        'network_io': sum(psutil.net_io_counters().bytes_sent + psutil.net_io_counters().bytes_recv for nic in psutil.net_io_counters(pernic=True).values()) if psutil.net_io_counters() else 0
+                        'disk_io': disk_io,
+                        'network_io': network_io
                     }
                     self.system_stats.append(stats)
-                    time.sleep(0.5)  # Sample every 0.5 seconds
+                    time.sleep(1.0)  # Increased from 0.5 to 1.0 seconds
                 except Exception as e:
                     print(f"Error monitoring system: {e}")
                     break
@@ -109,7 +139,11 @@ class PerformanceProfiler:
         with open(system_report, 'w') as f:
             f.write("timestamp,cpu_percent,memory_percent,memory_used,disk_io,network_io\n")
             for stat in self.system_stats:
-                f.write(f"{stat['timestamp']},{stat['cpu_percent']},{stat['memory_percent']},{stat['memory_used']},{stat['disk_io']},{stat['network_io']}\n")
+                f.write(
+                    f"{stat['timestamp']},{stat['cpu_percent']},"
+                    f"{stat['memory_percent']},{stat['memory_used']},"
+                    f"{stat['disk_io']},{stat['network_io']}\n"
+                )
 
         # Summary report
         summary_report = self.output_dir / f"summary_report_{timestamp}.txt"
@@ -122,7 +156,7 @@ class PerformanceProfiler:
             with open(summary_report, 'w') as f:
                 f.write(f"Performance Summary Report - {datetime.now()}\n")
                 f.write("=" * 60 + "\n\n")
-                f.write(f"Monitoring duration: {len(self.system_stats) * 0.5:.1f} seconds\n")
+                f.write(f"Monitoring duration: {len(self.system_stats) * 1.0:.1f} seconds\n")
                 f.write(f"Samples collected: {len(self.system_stats)}\n\n")
                 f.write("System Resource Usage:\n")
                 f.write("-" * 25 + "\n")

@@ -15,7 +15,7 @@ describe('WebSocket Integration Tests', () => {
   beforeEach(() => {
     // Reset all global state
     resetGlobalState();
-    
+
     document.body.innerHTML = `
       <div id="connectionStatus"></div>
       <div id="connectionText"></div>
@@ -73,13 +73,38 @@ describe('WebSocket Integration Tests', () => {
     });
 
     test('sends initial status request on open', () => {
-      initializeWebSocket();
-      
-      mockWebSocket.onopen();
+      // Mock WebSocket to capture the instance
+      let capturedWebSocket;
+      global.WebSocket = jest.fn().mockImplementation(function(url) {
+        capturedWebSocket = this;
+        this.url = url;
+        this.readyState = WebSocket.CONNECTING;
+        this.onopen = null;
+        this.onclose = null;
+        this.onmessage = null;
+        this.onerror = null;
+        this.send = jest.fn();
 
-      expect(mockWebSocket.send).toHaveBeenCalledWith(
-        JSON.stringify({ type: 'request_status' })
-      );
+        // Simulate connection
+        setTimeout(() => {
+          this.readyState = WebSocket.OPEN;
+          if (this.onopen) this.onopen();
+        }, 0);
+
+        return this;
+      });
+
+      initializeWebSocket();
+
+      // Wait for async connection
+      return new Promise(resolve => {
+        setTimeout(() => {
+          expect(capturedWebSocket.send).toHaveBeenCalledWith(
+            JSON.stringify({ type: 'request_status' })
+          );
+          resolve();
+        }, 10);
+      });
     });
 
     test('handles WebSocket errors gracefully', () => {
@@ -173,10 +198,10 @@ describe('System Resource Monitoring Tests', () => {
     document.body.innerHTML = `
       <div id="systemResources"></div>
     `;
-    
+
     // Clear resource data
     resourceData.length = 0;
-    
+
     // Reset agents array
     const { agents } = require('../dashboard-functions');
     agents.length = 0;
@@ -224,7 +249,7 @@ describe('System Resource Monitoring Tests', () => {
 
     test('maintains resource data history', () => {
       const initialLength = resourceData.length;
-      
+
       updateSystemResources();
 
       expect(resourceData.length).toBe(initialLength + 1);
@@ -350,7 +375,7 @@ describe('Performance and Memory Management Tests', () => {
   describe('Memory management', () => {
     test('logs array maintains size limit during heavy usage', () => {
       const { logs, addLogEntry } = require('../dashboard-functions');
-      
+
       // Clear logs first
       logs.length = 0;
 

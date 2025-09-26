@@ -12,7 +12,7 @@ const customFormat = winston.format.printf(({ timestamp, level, message, service
     message,
     ...meta
   };
-  
+
   return JSON.stringify(logEntry);
 });
 
@@ -40,7 +40,7 @@ const consoleFormat = winston.format.combine(
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: logFormat,
-  defaultMeta: { 
+  defaultMeta: {
     service: 'test-api',
     environment: process.env.NODE_ENV || 'development',
     hostname: require('os').hostname(),
@@ -80,8 +80,8 @@ if (process.env.NODE_ENV !== 'production') {
 const generateCorrelationId = () => crypto.randomBytes(8).toString('hex');
 
 const correlationMiddleware = (req, res, next) => {
-  req.correlationId = req.headers['x-correlation-id'] || 
-                      req.headers['x-request-id'] || 
+  req.correlationId = req.headers['x-correlation-id'] ||
+                      req.headers['x-request-id'] ||
                       generateCorrelationId();
   res.setHeader('x-correlation-id', req.correlationId);
   next();
@@ -90,17 +90,17 @@ const correlationMiddleware = (req, res, next) => {
 const requestLogger = (req, res, next) => {
   const start = Date.now();
   const originalSend = res.send;
-  
+
   res.send = function(body) {
     res.body = body;
     return originalSend.call(this, body);
   };
-  
+
   res.on('finish', () => {
     const duration = Date.now() - start;
-    const logLevel = res.statusCode >= 500 ? 'error' : 
+    const logLevel = res.statusCode >= 500 ? 'error' :
                      res.statusCode >= 400 ? 'warn' : 'info';
-    
+
     const logData = {
       correlationId: req.correlationId,
       method: req.method,
@@ -125,7 +125,7 @@ const requestLogger = (req, res, next) => {
       logger[logLevel]('HTTP Request', logData);
     }
   });
-  
+
   next();
 };
 
@@ -256,7 +256,7 @@ const healthLogger = {
   logSystemMetrics: () => {
     const usage = process.memoryUsage();
     const memoryUsagePercent = usage.heapUsed / usage.heapTotal;
-    
+
     logger.info('System Metrics', {
       uptime: process.uptime(),
       memoryUsage: usage,

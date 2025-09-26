@@ -157,10 +157,10 @@ describe('File-Based Database Integration Tests', () => {
       expect(tasks).toHaveLength(4);
 
       // Filter out valid tasks programmatically
-      const validTasks = tasks.filter(task => 
-        task && 
-        typeof task === 'object' && 
-        task.id && 
+      const validTasks = tasks.filter(task =>
+        task &&
+        typeof task === 'object' &&
+        task.id &&
         typeof task.id === 'string'
       );
 
@@ -322,7 +322,7 @@ describe('File-Based Database Integration Tests', () => {
         path.join(logsDir, 'system.log')
       ];
 
-      const writePromises = logFiles.map((file, index) => 
+      const writePromises = logFiles.map((file, index) =>
         fs.writeFile(file, `Log file ${index + 1} initialized\n`)
       );
 
@@ -350,7 +350,7 @@ describe('File-Based Database Integration Tests', () => {
     test('handles large log file operations efficiently', async () => {
       const largeLogFile = path.join(logsDir, 'large_test.log');
       const entryCount = 1000;
-      
+
       const startTime = Date.now();
 
       // Write many entries
@@ -436,12 +436,12 @@ describe('File-Based Database Integration Tests', () => {
       await fs.writeFile(tasksFile, JSON.stringify(initialTasks));
 
       // Multiple concurrent readers
-      const readPromises = Array(5).fill(0).map(() => 
+      const readPromises = Array(5).fill(0).map(() =>
         fs.readFile(tasksFile, 'utf8').then(data => JSON.parse(data))
       );
 
       const results = await Promise.all(readPromises);
-      
+
       // All readers should get consistent data
       results.forEach(result => {
         expect(result).toHaveLength(1);
@@ -488,9 +488,9 @@ describe('File-Based Database Integration Tests', () => {
       expect(Array.isArray(content)).toBe(true);
 
       // Clean up
-      await fs.rm(path.join(__dirname, 'fixtures', 'missing-project'), { 
-        recursive: true, 
-        force: true 
+      await fs.rm(path.join(__dirname, 'fixtures', 'missing-project'), {
+        recursive: true,
+        force: true
       });
     });
   });

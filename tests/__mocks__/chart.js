@@ -6,15 +6,15 @@ export default class Chart {
     this.data = config.data || { labels: [], datasets: [] };
     this.options = config.options || {};
   }
-  
+
   update(mode) {
     // Mock update
   }
-  
+
   destroy() {
     // Mock destroy
   }
-  
+
   static register() {
     // Mock register
   }

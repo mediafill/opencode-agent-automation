@@ -7,7 +7,7 @@ beforeAll(async () => {
   // Set up test directories and cleanup
   const testProjectDir = path.join(__dirname, 'fixtures', 'test-project');
   await fs.mkdir(testProjectDir, { recursive: true });
-  
+
   // Store for cleanup
   global.testProjectDir = testProjectDir;
 });

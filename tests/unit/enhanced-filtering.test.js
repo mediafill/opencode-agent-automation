@@ -45,14 +45,20 @@ beforeEach(() => {
     </body>
     </html>
   `);
-  
+
   document = dom.window.document;
   window = dom.window;
+
+  // Apply global mocks to the test DOM
+  window.URL = global.URL;
+  window.Blob = global.Blob;
+  window.localStorage = global.localStorage;
+  window.WebSocket = global.WebSocket;
   global.document = document;
   global.window = window;
   global.Blob = window.Blob;
   global.URL = window.URL;
-  
+
   // Reset state before each test
   resetGlobalState();
 });
@@ -62,7 +68,7 @@ afterEach(() => {
 });
 
 describe('Enhanced Filtering Functionality Tests', () => {
-  
+
   describe('Fuzzy Matching Algorithm', () => {
     test('fuzzyMatchScore calculates correct scores for identical strings', () => {
       expect(fuzzyMatchScore('test', 'test')).toBe(1.0);
@@ -82,7 +88,7 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('fuzzyMatch works with multiple search fields', () => {
       const searchFields = ['security_agent', 'security audit task', 'high', 'running'];
-      
+
       expect(fuzzyMatch('security', searchFields)).toBe(true);
       expect(fuzzyMatch('audit', searchFields)).toBe(true);
       expect(fuzzyMatch('high', searchFields)).toBe(true);
@@ -91,7 +97,7 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('fuzzyMatch is case insensitive', () => {
       const searchFields = ['Security_Agent', 'HIGH_PRIORITY'];
-      
+
       expect(fuzzyMatch('security', searchFields)).toBe(true);
       expect(fuzzyMatch('HIGH', searchFields)).toBe(true);
       expect(fuzzyMatch('agent', searchFields)).toBe(true);
@@ -107,7 +113,7 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('checkDateRange filters by from date only', () => {
       const fromDate = '2023-01-10';
-      
+
       expect(checkDateRange(new Date('2023-01-15'), fromDate, null)).toBe(true);
       expect(checkDateRange(new Date('2023-01-05'), fromDate, null)).toBe(false);
       expect(checkDateRange(new Date('2023-01-10'), fromDate, null)).toBe(true);
@@ -115,7 +121,7 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('checkDateRange filters by to date only', () => {
       const toDate = '2023-01-20';
-      
+
       expect(checkDateRange(new Date('2023-01-15'), null, toDate)).toBe(true);
       expect(checkDateRange(new Date('2023-01-25'), null, toDate)).toBe(false);
       expect(checkDateRange(new Date('2023-01-20'), null, toDate)).toBe(true);
@@ -124,7 +130,7 @@ describe('Enhanced Filtering Functionality Tests', () => {
     test('checkDateRange filters by date range', () => {
       const fromDate = '2023-01-10';
       const toDate = '2023-01-20';
-      
+
       expect(checkDateRange(new Date('2023-01-15'), fromDate, toDate)).toBe(true);
       expect(checkDateRange(new Date('2023-01-05'), fromDate, toDate)).toBe(false);
       expect(checkDateRange(new Date('2023-01-25'), fromDate, toDate)).toBe(false);
@@ -213,21 +219,21 @@ describe('Enhanced Filtering Functionality Tests', () => {
   describe('Filter Summary Updates', () => {
     test('updateFilterSummary updates DOM elements correctly', () => {
       updateFilterSummary(5, 10);
-      
+
       const filterCount = document.getElementById('filterCount');
       const totalCount = document.getElementById('totalCount');
-      
+
       expect(filterCount.textContent).toBe('5');
       expect(totalCount.textContent).toBe('10');
     });
 
     test('updateFilterSummary handles equal counts', () => {
       updateFilterSummary(10, 10);
-      
+
       const filterCount = document.getElementById('filterCount');
       const totalCount = document.getElementById('totalCount');
       const summary = document.getElementById('filterSummary');
-      
+
       expect(filterCount.textContent).toBe('10');
       expect(totalCount.textContent).toBe('10');
       expect(summary.style.opacity).toBe('0.8'); // No filters active
@@ -235,7 +241,7 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('updateFilterSummary highlights when filters are active', () => {
       updateFilterSummary(3, 10);
-      
+
       const summary = document.getElementById('filterSummary');
       expect(summary.style.opacity).toBe('1'); // Filters are active
     });
@@ -311,7 +317,7 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('exportFilteredAgents returns CSV data', () => {
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('ID,Type,Status,Priority,Progress,Task,Start Time,Error');
       expect(csvData).toContain('security_agent_1,security,running,high,75%');
       expect(csvData).toContain('testing_agent_1,testing,completed,medium,100%');
@@ -320,9 +326,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('exportFilteredAgents respects status filter', () => {
       document.getElementById('statusFilter').value = 'completed';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('testing_agent_1');
       expect(csvData).not.toContain('security_agent_1');
       expect(csvData).not.toContain('error_agent_1');
@@ -330,9 +336,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('exportFilteredAgents respects type filter', () => {
       document.getElementById('typeFilter').value = 'security';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('security_agent_1');
       expect(csvData).not.toContain('testing_agent_1');
       expect(csvData).not.toContain('error_agent_1');
@@ -340,9 +346,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('exportFilteredAgents respects search filter', () => {
       document.getElementById('searchFilter').value = 'audit';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('security_agent_1'); // Has "Security audit" task
       expect(csvData).not.toContain('testing_agent_1');
       expect(csvData).not.toContain('error_agent_1');
@@ -350,9 +356,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('exportFilteredAgents handles empty filter results', () => {
       document.getElementById('statusFilter').value = 'nonexistent';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       // Should only contain header row
       const lines = csvData.split('\n').filter(line => line.trim());
       expect(lines).toHaveLength(1);
@@ -361,9 +367,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
 
     test('exportFilteredAgents includes error messages', () => {
       document.getElementById('statusFilter').value = 'error';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('Connection timeout');
     });
   });
@@ -407,9 +413,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
     test('multi-criteria filtering works with status + priority', () => {
       document.getElementById('statusFilter').value = 'running';
       document.getElementById('priorityFilter').value = 'high';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('security_high_running');
       expect(csvData).not.toContain('security_high_completed'); // Wrong status
       expect(csvData).not.toContain('testing_medium_running'); // Wrong priority
@@ -418,9 +424,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
     test('multi-criteria filtering works with type + search', () => {
       document.getElementById('typeFilter').value = 'security';
       document.getElementById('searchFilter').value = 'audit';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('security_high_running'); // Matches type + has "audit" in task
       expect(csvData).not.toContain('security_high_completed'); // No "audit" in task
       expect(csvData).not.toContain('testing_medium_running'); // Wrong type
@@ -431,9 +437,9 @@ describe('Enhanced Filtering Functionality Tests', () => {
       document.getElementById('typeFilter').value = 'security';
       document.getElementById('priorityFilter').value = 'high';
       document.getElementById('searchFilter').value = 'payment';
-      
+
       const csvData = exportFilteredAgents();
-      
+
       expect(csvData).toContain('security_high_running'); // Matches all criteria
       expect(csvData).not.toContain('security_high_completed'); // Wrong status
       expect(csvData).not.toContain('testing_medium_running'); // Wrong type and priority

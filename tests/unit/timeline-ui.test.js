@@ -10,7 +10,7 @@ describe('Timeline and UI Interaction Tests', () => {
   beforeEach(() => {
     // Reset all global state
     resetGlobalState();
-    
+
     document.body.innerHTML = `
       <div id="timeline"></div>
       <div id="agentStatusOverview"></div>
@@ -32,7 +32,7 @@ describe('Timeline and UI Interaction Tests', () => {
           task: 'First task'
         },
         {
-          id: 'agent_2', 
+          id: 'agent_2',
           startTime: oneHourAgo,
           status: 'running',
           task: 'Second task'
@@ -49,7 +49,7 @@ describe('Timeline and UI Interaction Tests', () => {
 
       const container = document.getElementById('timeline');
       const timelineItems = container.querySelectorAll('.timeline-item');
-      
+
       expect(timelineItems).toHaveLength(3);
       expect(timelineItems[0].innerHTML).toContain('agent_3');
       expect(timelineItems[1].innerHTML).toContain('agent_2');
@@ -81,7 +81,7 @@ describe('Timeline and UI Interaction Tests', () => {
 
     test('limits timeline to 10 most recent items', () => {
       const now = new Date();
-      
+
       // Add 15 agents with different start times
       for (let i = 0; i < 15; i++) {
         agents.push({
@@ -96,7 +96,7 @@ describe('Timeline and UI Interaction Tests', () => {
 
       const container = document.getElementById('timeline');
       const timelineItems = container.querySelectorAll('.timeline-item');
-      
+
       expect(timelineItems).toHaveLength(10);
     });
 
@@ -155,7 +155,7 @@ describe('Timeline and UI Interaction Tests', () => {
 
       const container = document.getElementById('timeline');
       const timeElement = container.querySelector('.timeline-time');
-      
+
       expect(timeElement).toBeTruthy();
       expect(timeElement.textContent).toBe(formatTime(testDate));
     });
@@ -164,7 +164,7 @@ describe('Timeline and UI Interaction Tests', () => {
   describe('Timeline Integration with Real-time Updates', () => {
     test('timeline updates when agents are added', () => {
       updateTimeline();
-      
+
       let container = document.getElementById('timeline');
       expect(container.innerHTML).toContain('No recent activity');
 
@@ -209,7 +209,7 @@ describe('Timeline and UI Interaction Tests', () => {
   describe('Timeline Performance Tests', () => {
     test('handles large numbers of agents efficiently', () => {
       const now = new Date();
-      
+
       // Add 100 agents
       for (let i = 0; i < 100; i++) {
         agents.push({
@@ -244,9 +244,9 @@ describe('Timeline and UI Interaction Tests', () => {
           status: 'running',
           task: `Memory test ${i}`
         });
-        
+
         updateTimeline();
-        
+
         // Clear agents to simulate real usage pattern
         if (i % 100 === 0) {
           agents.length = 0;
@@ -255,7 +255,7 @@ describe('Timeline and UI Interaction Tests', () => {
 
       const finalMemory = process.memoryUsage().heapUsed;
       const memoryGrowth = finalMemory - initialMemory;
-      
+
       // Memory growth should be reasonable (less than 10MB)
       expect(memoryGrowth).toBeLessThan(10 * 1024 * 1024);
     });
@@ -273,7 +273,7 @@ describe('Timeline and UI Interaction Tests', () => {
         {
           id: 'invalid_time_2',
           startTime: NaN,
-          status: 'running', 
+          status: 'running',
           task: 'Invalid time test 2'
         },
         {
@@ -347,7 +347,7 @@ describe('Timeline and UI Interaction Tests', () => {
 
       const container = document.getElementById('timeline');
       const timelineItem = container.querySelector('.timeline-item');
-      
+
       expect(timelineItem).toBeTruthy();
       expect(timelineItem.querySelector('.timeline-time')).toBeTruthy();
       expect(timelineItem.querySelector('.timeline-content')).toBeTruthy();
@@ -366,7 +366,7 @@ describe('Timeline and UI Interaction Tests', () => {
       const container = document.getElementById('timeline');
       const timelineContent = container.querySelector('.timeline-content');
       const strongElement = timelineContent.querySelector('strong');
-      
+
       expect(strongElement).toBeTruthy();
       expect(strongElement.textContent).toContain('hierarchy_test_agent');
     });

@@ -1,69 +1,20 @@
 {
-  "created_at": "2025-09-26T09:38:13.394232",
-  "total_tasks": 9,
+  "created_at": "2025-09-26T10:13:29.104479",
+  "total_tasks": 2,
   "tasks": [
     {
-      "id": "unit_tests_1758901093",
-      "type": "testing",
+      "id": "feature_impl_1758903209",
+      "type": "feature",
       "priority": "high",
-      "description": "Create comprehensive unit tests for all core functions and classes with edge case coverage",
+      "description": "Implement core functionality for: Implement a working vector database system using ChromaDB or a simple JSON-based vector store. Create scripts/vector_database.py with VectorDatabase class. Include methods for: storing task history, storing agent learnings, querying similar solutions, and retrieving past decisions. Make it lightweight and functional without external dependencies if ChromaDB isn't available.",
       "files_pattern": "**/*.{py,js,ts,java,rb,php}"
     },
     {
-      "id": "integration_tests_1758901093",
+      "id": "feature_tests_1758903209",
       "type": "testing",
-      "priority": "medium",
-      "description": "Build integration tests for API endpoints and database interactions",
-      "files_pattern": "test/**/*,tests/**/*,**/*test*"
-    },
-    {
-      "id": "test_coverage_1758901093",
-      "type": "testing",
-      "priority": "medium",
-      "description": "Set up test coverage reporting and ensure minimum 80% coverage target",
-      "files_pattern": "**/*"
-    },
-    {
-      "id": "perf_analysis_1758901093",
-      "type": "performance",
       "priority": "high",
-      "description": "Profile application performance and identify bottlenecks in hot code paths",
-      "files_pattern": "**/*.{py,js,ts,java}"
-    },
-    {
-      "id": "database_optimization_1758901093",
-      "type": "performance",
-      "priority": "high",
-      "description": "Optimize database queries: add indexes, fix N+1 queries, implement query caching",
-      "files_pattern": "**/*.{py,js,ts,sql}"
-    },
-    {
-      "id": "caching_strategy_1758901093",
-      "type": "performance",
-      "priority": "medium",
-      "description": "Implement intelligent caching for frequently accessed data and expensive operations",
-      "files_pattern": "**/*.{py,js,ts}"
-    },
-    {
-      "id": "code_standards_1758901093",
-      "type": "quality",
-      "priority": "medium",
-      "description": "Apply consistent code formatting, naming conventions, and style guidelines",
-      "files_pattern": "**/*.{py,js,ts,java,rb,php}"
-    },
-    {
-      "id": "linting_setup_1758901093",
-      "type": "quality",
-      "priority": "medium",
-      "description": "Set up and configure linting tools (ESLint, PyLint, etc.) with team standards",
-      "files_pattern": "**/*"
-    },
-    {
-      "id": "code_duplication_1758901093",
-      "type": "refactoring",
-      "priority": "low",
-      "description": "Identify and eliminate code duplication by extracting reusable functions/components",
-      "files_pattern": "**/*.{py,js,ts,java,rb,php}"
+      "description": "Create comprehensive tests for the new feature: Implement a working vector database system using ChromaDB or a simple JSON-based vector store. Create scripts/vector_database.py with VectorDatabase class. Include methods for: storing task history, storing agent learnings, querying similar solutions, and retrieving past decisions. Make it lightweight and functional without external dependencies if ChromaDB isn't available.",
+      "files_pattern": "test/**/*,tests/**/*"
     }
   ]
 }

@@ -36,24 +36,25 @@ function rebuildIndexes() {
     agentsByType.clear();
     tasksByType.clear();
 
-    // Rebuild agent indexes
+    // Rebuild agent indexes - creates O(1) lookup maps for performance
+    // Multiple indexes allow efficient filtering by different criteria
     agents.forEach(agent => {
         agentsIndex.set(agent.id, agent);
 
-        // Status index
+        // Status index - groups agents by status for fast status-based queries
         if (!agentsByStatus.has(agent.status)) {
             agentsByStatus.set(agent.status, new Set());
         }
         agentsByStatus.get(agent.status).add(agent.id);
 
-        // Type index
+        // Type index - groups agents by type for fast type-based queries
         if (!agentsByType.has(agent.type)) {
             agentsByType.set(agent.type, new Set());
         }
         agentsByType.get(agent.type).add(agent.id);
     });
 
-    // Rebuild task indexes
+    // Rebuild task indexes - same structure as agent indexes
     tasks.forEach(task => {
         tasksIndex.set(task.id, task);
 
@@ -70,7 +71,7 @@ function rebuildIndexes() {
         tasksByType.get(task.type).add(task.id);
     });
 
-    // Invalidate cached stats
+    // Invalidate cached stats - force recomputation on next access
     cachedAgentStats = null;
     cachedTaskStats = null;
 }
@@ -176,11 +177,12 @@ let connectionMetrics = {
 // Enhanced WebSocket connection with validation and health monitoring
 function initializeWebSocket() {
     if (connectionState === 'connecting') return; // Prevent multiple connection attempts
-    
+
     connectionState = 'connecting';
     updateConnectionStatus('connecting', 'Connecting...');
-    
-    const wsProtocol = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+
+    const wsProtocol = (typeof window !== 'undefined' &&
+                        window.location.protocol === 'https:') ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//localhost:8080/ws`;
 
     try {
@@ -189,7 +191,7 @@ function initializeWebSocket() {
         } else {
             throw new Error('WebSocket not available in this environment');
         }
-        
+
         // Set connection timeout
         const connectionTimeout = setTimeout(() => {
             if (connectionState === 'connecting') {
@@ -203,17 +205,18 @@ function initializeWebSocket() {
             connectionState = 'connected';
             connectionAttempts = 0;
             connectionMetrics.connectTime = new Date();
-            connectionMetrics.reconnectCount = connectionAttempts > 0 ? connectionMetrics.reconnectCount + 1 : 0;
-            
+            connectionMetrics.reconnectCount = connectionAttempts > 0 ?
+                connectionMetrics.reconnectCount + 1 : 0;
+
             updateConnectionStatus('connected', 'Connected');
             console.log('WebSocket connected successfully');
-            
+
             // Start heartbeat mechanism
             startHeartbeat();
-            
+
             // Request initial data when connected
             sendMessage({ type: 'request_status' });
-            
+
             addLogEntry({
                 time: new Date(),
                 level: 'info',
@@ -225,15 +228,15 @@ function initializeWebSocket() {
         websocket.onmessage = function(event) {
             connectionMetrics.messagesReceived++;
             connectionMetrics.lastHeartbeat = new Date();
-            
+
             try {
                 const data = JSON.parse(event.data);
-                
+
                 // Handle heartbeat response
                 if (data.type === 'pong') {
                     return; // Just update metrics, no further processing needed
                 }
-                
+
                 handleWebSocketMessage(data);
             } catch (error) {
                 console.error('Error parsing WebSocket message:', error);
@@ -249,12 +252,12 @@ function initializeWebSocket() {
         websocket.onclose = function(event) {
             clearTimeout(connectionTimeout);
             stopHeartbeat();
-            
+
             const wasConnected = connectionState === 'connected';
             connectionState = 'disconnected';
-            
+
             console.log('WebSocket disconnected', event.code, event.reason);
-            
+
             if (event.code === 1000) {
                 // Normal closure
                 updateConnectionStatus('disconnected', 'Disconnected');
@@ -269,7 +272,9 @@ function initializeWebSocket() {
                 handleConnectionFailure(`Connection lost (${event.code})`);
             } else {
                 // Other closure codes
-                handleConnectionFailure(`Connection closed with code ${event.code}: ${event.reason || 'Unknown'}`);
+                handleConnectionFailure(
+                    `Connection closed with code ${event.code}: ${event.reason || 'Unknown'}`
+                );
             }
         };
 
@@ -289,27 +294,33 @@ function initializeWebSocket() {
 function handleConnectionFailure(reason) {
     connectionState = 'error';
     updateConnectionStatus('disconnected', `Error: ${reason}`);
-    
+
     addLogEntry({
         time: new Date(),
         level: 'error',
         message: reason,
         agent: 'dashboard'
     });
-    
+
     // Stop any existing reconnection attempts
     if (reconnectInterval) {
         clearInterval(reconnectInterval);
         reconnectInterval = null;
     }
-    
+
     // Attempt reconnection with exponential backoff
     if (connectionAttempts < maxReconnectAttempts) {
         connectionAttempts++;
-        const delay = Math.min(baseReconnectDelay * Math.pow(2, connectionAttempts - 1), maxReconnectDelay);
-        
-        updateConnectionStatus('connecting', `Reconnecting in ${Math.round(delay/1000)}s... (${connectionAttempts}/${maxReconnectAttempts})`);
-        
+        const delay = Math.min(
+            baseReconnectDelay * Math.pow(2, connectionAttempts - 1),
+            maxReconnectDelay
+        );
+
+        updateConnectionStatus(
+            'connecting',
+            `Reconnecting in ${Math.round(delay/1000)}s... (${connectionAttempts}/${maxReconnectAttempts})`
+        );
+
         reconnectInterval = setTimeout(() => {
             reconnectInterval = null;
             initializeWebSocket();
@@ -330,17 +341,17 @@ function handleConnectionFailure(reason) {
 // Heartbeat mechanism for connection health monitoring
 function startHeartbeat() {
     stopHeartbeat(); // Clear any existing heartbeat
-    
+
     if (typeof setInterval === 'undefined') return; // Skip in test environments
-    
+
     heartbeatInterval = setInterval(() => {
         if (websocket && websocket.readyState === 1) { // WebSocket.OPEN
             sendMessage({ type: 'ping', timestamp: new Date().getTime() });
-            
+
             // Check if we haven't received a heartbeat response in a while
-            const timeSinceLastHeartbeat = connectionMetrics.lastHeartbeat ? 
+            const timeSinceLastHeartbeat = connectionMetrics.lastHeartbeat ?
                 Date.now() - connectionMetrics.lastHeartbeat.getTime() : Infinity;
-            
+
             if (timeSinceLastHeartbeat > heartbeatInterval_ms * 2) {
                 console.warn('Heartbeat timeout detected, forcing reconnection');
                 websocket.close(1006, 'Heartbeat timeout');
@@ -388,7 +399,7 @@ function handleWebSocketMessage(data) {
         console.warn('Invalid WebSocket message received:', data);
         return;
     }
-    
+
     switch (data.type) {
         case 'agent_update':
             if (data.agent && data.agent.id) {
@@ -474,7 +485,7 @@ function updateAgentMetrics(metrics) {
     if (metrics.performance) {
         updatePerformanceMetrics(metrics.performance);
     }
-    
+
     // Update resource usage
     if (metrics.resources) {
         updateResourceData(metrics.resources);
@@ -898,10 +909,10 @@ function toggleTheme() {
     if (document.body.className === 'dark' || document.body.className === 'light') {
         currentTheme = document.body.className;
     }
-    
+
     currentTheme = currentTheme === 'light' ? 'dark' : 'light';
     document.body.className = currentTheme;
-    
+
     // Use global localStorage reference for tests
     try {
         if (typeof window !== 'undefined' && window.localStorage) {
@@ -942,15 +953,15 @@ function formatDuration(seconds) {
 // Connection health check
 function performConnectionHealthCheck() {
     if (!websocket) return false;
-    
+
     switch (websocket.readyState) {
         case 0: // WebSocket.CONNECTING
             return 'connecting';
         case 1: // WebSocket.OPEN
             // Check if we've received a heartbeat recently
-            const timeSinceHeartbeat = connectionMetrics.lastHeartbeat ? 
+            const timeSinceHeartbeat = connectionMetrics.lastHeartbeat ?
                 Date.now() - connectionMetrics.lastHeartbeat.getTime() : Infinity;
-            
+
             if (timeSinceHeartbeat > heartbeatInterval_ms * 1.5) {
                 return 'unhealthy';
             }
@@ -968,7 +979,7 @@ function performConnectionHealthCheck() {
 function updatePerformanceMetrics(performanceData) {
     if (!performanceData) {
         performanceData = {
-            connectionUptime: connectionMetrics.connectTime ? 
+            connectionUptime: connectionMetrics.connectTime ?
                 Date.now() - connectionMetrics.connectTime.getTime() : 0,
             messagesSent: connectionMetrics.messagesSent,
             messagesReceived: connectionMetrics.messagesReceived,
@@ -976,7 +987,7 @@ function updatePerformanceMetrics(performanceData) {
             lastHeartbeat: connectionMetrics.lastHeartbeat
         };
     }
-    
+
     // Send performance data if connected
     if (websocket && websocket.readyState === 1) {
         sendMessage({
@@ -1007,7 +1018,7 @@ function exportLogs() {
 function initializeCharts() {
     const resourceCtx = document.getElementById('resourceChart');
     const taskCtx = document.getElementById('taskDistributionChart');
-    
+
     if (resourceCtx && typeof Chart !== 'undefined') {
         charts.resource = new Chart(resourceCtx.getContext('2d'), {
             type: 'line',
@@ -1079,9 +1090,9 @@ function initializeCharts() {
 
 function updateTaskDistributionChart() {
     if (!charts.taskDistribution) return;
-    
+
     const stats = getAgentStats(); // Use cached stats instead of recomputing
-    
+
     const data = [
         stats.byType.security || 0,
         stats.byType.testing || 0,
@@ -1103,8 +1114,9 @@ function filterAgents() {
     let filteredAgentIds = new Set();
 
     // Start with all agents or filtered by status/type using indexes
+    // Uses pre-built indexes for O(1) filtering instead of O(n) iteration
     if (statusFilter && typeFilter) {
-        // Intersection of status and type filters
+        // Intersection of status and type filters - finds agents matching both criteria
         const statusAgents = getAgentsByStatus(statusFilter);
         const typeAgents = getAgentsByType(typeFilter);
         filteredAgentIds = new Set([...statusAgents].filter(id => typeAgents.has(id)));
@@ -1117,7 +1129,7 @@ function filterAgents() {
         agents.forEach(agent => filteredAgentIds.add(agent.id));
     }
 
-    // Apply search filter if present
+    // Apply search filter if present - uses fuzzy matching for flexible search
     if (searchFilter) {
         const searchFiltered = new Set();
         filteredAgentIds.forEach(agentId => {
@@ -1131,7 +1143,7 @@ function filterAgents() {
         filteredAgentIds = searchFiltered;
     }
 
-    // Get actual agent objects for rendering
+    // Get actual agent objects for rendering - convert IDs back to objects
     const filteredAgents = Array.from(filteredAgentIds).map(id => getAgentById(id)).filter(Boolean);
 
     const container = document.getElementById('activeAgents');
@@ -1185,7 +1197,7 @@ function showAgentDetails(agentId) {
     const modalTitle = document.getElementById('modalTitle');
     const modalBody = document.getElementById('modalBody');
     const detailModal = document.getElementById('detailModal');
-    
+
     if (modalTitle) modalTitle.textContent = `Agent Details: ${agentId}`;
     if (modalBody) {
         modalBody.innerHTML = `
@@ -1228,21 +1240,21 @@ function closeModal() {
 // Enhanced search with fuzzy matching
 function fuzzyMatch(searchTerm, searchFields) {
     const lowerSearchTerm = searchTerm.toLowerCase();
-    
+
     for (const field of searchFields) {
         const fieldValue = (field || '').toString().toLowerCase();
-        
+
         // Exact match
         if (fieldValue.includes(lowerSearchTerm)) {
             return true;
         }
-        
+
         // Fuzzy matching with tolerance
         if (fuzzyMatchScore(lowerSearchTerm, fieldValue) > 0.6) {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -1254,14 +1266,14 @@ function fuzzyMatchScore(search, target) {
 
     let score = 0;
     let searchIndex = 0;
-    
+
     for (let i = 0; i < target.length && searchIndex < search.length; i++) {
         if (target[i] === search[searchIndex]) {
             score++;
             searchIndex++;
         }
     }
-    
+
     return score / search.length;
 }
 
@@ -1269,21 +1281,21 @@ function fuzzyMatchScore(search, target) {
 function checkDateRange(agentDate, fromDate, toDate) {
     if (!fromDate && !toDate) return true;
     if (!agentDate) return !fromDate && !toDate;
-    
+
     const agentDateObj = new Date(agentDate);
     const fromDateObj = fromDate ? new Date(fromDate) : null;
     const toDateObj = toDate ? new Date(toDate) : null;
-    
+
     if (fromDateObj && agentDateObj < fromDateObj) return false;
     if (toDateObj && agentDateObj > new Date(toDateObj.getTime() + 86400000)) return false; // Add one day for inclusive range
-    
+
     return true;
 }
 
 // Sorting functionality
 function sortAgents(agents, sortType) {
     const sortedAgents = [...agents];
-    
+
     switch (sortType) {
         case 'oldest':
             return sortedAgents.sort((a, b) => new Date(a.startTime || 0) - new Date(b.startTime || 0));
@@ -1315,10 +1327,10 @@ function updateFilterSummary(filteredCount, totalCount) {
     const summaryElement = document.getElementById('filterSummary');
     const filterCountElement = document.getElementById('filterCount');
     const totalCountElement = document.getElementById('totalCount');
-    
+
     if (filterCountElement) filterCountElement.textContent = filteredCount;
     if (totalCountElement) totalCountElement.textContent = totalCount;
-    
+
     // Highlight when filters are active
     if (summaryElement) {
         summaryElement.style.opacity = filteredCount < totalCount ? '1' : '0.8';
@@ -1328,18 +1340,18 @@ function updateFilterSummary(filteredCount, totalCount) {
 // Clear all filters
 function clearAllFilters() {
     const elements = [
-        'statusFilter', 'typeFilter', 'priorityFilter', 'searchFilter', 
+        'statusFilter', 'typeFilter', 'priorityFilter', 'searchFilter',
         'dateFromFilter', 'dateToFilter'
     ];
-    
+
     elements.forEach(id => {
         const element = document.getElementById(id);
         if (element) element.value = '';
     });
-    
+
     const sortElement = document.getElementById('sortFilter');
     if (sortElement) sortElement.value = 'newest';
-    
+
     filterAgents();
 }
 
@@ -1349,7 +1361,7 @@ function exportFilteredAgents() {
     const typeFilter = document.getElementById('typeFilter')?.value || '';
     const priorityFilter = document.getElementById('priorityFilter')?.value || '';
     const searchFilter = document.getElementById('searchFilter')?.value || '';
-    
+
     let filteredAgentIds = new Set();
 
     // Use optimized filtering logic
@@ -1375,7 +1387,7 @@ function exportFilteredAgents() {
                 const matchesSearch = !searchFilter || fuzzyMatch(searchFilter.toLowerCase(), [
                     agent.id, agent.task, agent.error || '', agent.type, agent.priority, agent.status
                 ]);
-                
+
                 if (matchesPriority && matchesSearch) {
                     finalFiltered.add(agentId);
                 }
@@ -1383,9 +1395,9 @@ function exportFilteredAgents() {
         });
         filteredAgentIds = finalFiltered;
     }
-    
+
     const filteredAgents = Array.from(filteredAgentIds).map(id => getAgentById(id)).filter(Boolean);
-    
+
     const csvData = [
         ['ID', 'Type', 'Status', 'Priority', 'Progress', 'Task', 'Start Time', 'Error'],
         ...filteredAgents.map(agent => [
@@ -1399,7 +1411,7 @@ function exportFilteredAgents() {
             agent.error || ''
         ])
     ].map(row => row.join(',')).join('\n');
-    
+
     if (typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
         const blob = new Blob([csvData], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
@@ -1411,7 +1423,7 @@ function exportFilteredAgents() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
-    
+
     return csvData;
 }
 
@@ -1424,7 +1436,7 @@ function resetGlobalState() {
     currentTheme = 'light';
     autoScrollLogs = true;
     Object.keys(charts).forEach(key => delete charts[key]);
-    
+
     // Clear indexes and caches
     agentsIndex.clear();
     tasksIndex.clear();
@@ -1435,7 +1447,7 @@ function resetGlobalState() {
     cachedAgentStats = null;
     cachedTaskStats = null;
     lastStatsUpdate = 0;
-    
+
     websocket = null;
     reconnectInterval = null;
     heartbeatInterval = null;

@@ -16,7 +16,7 @@ describe('WebSocket Server Integration Tests', () => {
     // Create test project structure
     await fs.promises.mkdir(claudeDir, { recursive: true });
     await fs.promises.mkdir(path.join(claudeDir, 'logs'), { recursive: true });
-    
+
     // Initialize test files
     await fs.promises.writeFile(tasksFile, JSON.stringify([]));
     await fs.promises.writeFile(taskStatusFile, JSON.stringify({}));
@@ -53,7 +53,7 @@ describe('WebSocket Server Integration Tests', () => {
         server.on('close', resolve);
       });
     }
-    
+
     // Clean up test files
     try {
       await fs.promises.writeFile(tasksFile, JSON.stringify([]));
@@ -97,9 +97,9 @@ describe('WebSocket Server Integration Tests', () => {
 
     test('handles connection drops gracefully', async () => {
       await mockWebSocket.connected;
-      
+
       mockWebSocket.close();
-      
+
       // Server should handle the disconnection without crashing
       // Reconnect should work
       const newClient = new WS(`ws://localhost:${testPort}/ws`);
@@ -155,7 +155,7 @@ describe('WebSocket Server Integration Tests', () => {
     test('request_agent_details returns detailed agent information', async () => {
       await mockWebSocket.connected;
 
-      mockWebSocket.send(JSON.stringify({ 
+      mockWebSocket.send(JSON.stringify({
         type: 'request_agent_details',
         agent_id: 'test_agent_1'
       }));
@@ -218,7 +218,7 @@ describe('WebSocket Server Integration Tests', () => {
         try {
           const statusResponse = await mockWebSocket.nextMessage;
           const statusData = JSON.parse(statusResponse);
-          
+
           if (statusData.type === 'task_status_update') {
             statusUpdates++;
             expect(statusData.data).toHaveProperty('task_id', 'integration_test_task');
@@ -259,14 +259,14 @@ describe('WebSocket Server Integration Tests', () => {
 
       // First get list of processes to find a safe one to test with
       mockWebSocket.send(JSON.stringify({ type: 'request_claude_processes' }));
-      
+
       const processResponse = await mockWebSocket.nextMessage;
       const processData = JSON.parse(processResponse);
 
       if (processData.data.processes.length > 0) {
         const testPid = processData.data.processes[0].pid;
 
-        mockWebSocket.send(JSON.stringify({ 
+        mockWebSocket.send(JSON.stringify({
           type: 'kill_process',
           pid: testPid,
           signal: 'SIGTERM'
@@ -284,7 +284,7 @@ describe('WebSocket Server Integration Tests', () => {
     test('handles invalid process kill requests', async () => {
       await mockWebSocket.connected;
 
-      mockWebSocket.send(JSON.stringify({ 
+      mockWebSocket.send(JSON.stringify({
         type: 'kill_process',
         pid: 999999999, // Non-existent PID
         signal: 'SIGTERM'
@@ -404,7 +404,7 @@ describe('WebSocket Server Integration Tests', () => {
 
       // Server should still respond (may be slower but shouldn't crash)
       mockWebSocket.send(JSON.stringify({ type: 'request_status' }));
-      
+
       const response = await mockWebSocket.nextMessage;
       const data = JSON.parse(response);
 

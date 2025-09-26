@@ -1,0 +1,18 @@
+{
+  "documents": [],
+  "metadata": [],
+  "ids": [],
+  "stats": {
+    "total_documents": 0,
+    "collections": [],
+    "last_updated": null,
+    "configuration": {
+      "projectDir": ".",
+      "chromaUrl": "http://localhost:8000",
+      "collectionName": "test",
+      "embeddingModel": "all-MiniLM-L6-v2",
+      "maxRetries": 3,
+      "retryDelay": 1000
+    }
+  }
+}
