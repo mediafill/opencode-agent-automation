@@ -144,7 +144,19 @@ setup_project() {
     # Copy templates
     cp -n "$INSTALL_DIR/templates/agentsync.md" "$CLAUDE_DIR/" 2>/dev/null || true
     cp -n "$INSTALL_DIR/templates/tasks.json" "$CLAUDE_DIR/" 2>/dev/null || true
-    cp -n "$INSTALL_DIR/templates/CLAUDE.md" "$CLAUDE_DIR/" 2>/dev/null || true
+    
+    # Handle CLAUDE.md specially - merge with existing if present
+    if [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
+        log_info "Existing CLAUDE.md found, appending automation system documentation..."
+        echo "" >> "$CLAUDE_DIR/CLAUDE.md"
+        echo "# ===== OpenCode Agent Automation System Documentation =====" >> "$CLAUDE_DIR/CLAUDE.md"
+        echo "# Added by installer on $(date)" >> "$CLAUDE_DIR/CLAUDE.md"
+        echo "" >> "$CLAUDE_DIR/CLAUDE.md"
+        cat "$INSTALL_DIR/.claude/CLAUDE.md" >> "$CLAUDE_DIR/CLAUDE.md"
+    else
+        log_info "Creating new CLAUDE.md integration guide..."
+        cp "$INSTALL_DIR/.claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md" 2>/dev/null || true
+    fi
 
     # Copy scripts
     cp "$INSTALL_DIR/scripts/run_agents.sh" "$CLAUDE_DIR/"

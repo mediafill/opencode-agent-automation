@@ -167,6 +167,26 @@ agents delegate "create API documentation and update README"
 
 ## Advanced Usage
 
+### Claude Integration
+
+When working in projects with the automation system installed, Claude can use the comprehensive `.claude/CLAUDE.md` guide to:
+
+- **Coordinate with OpenCode agents** for parallel task execution
+- **Monitor progress** with real-time dashboards and status reporting  
+- **Manage complex objectives** by breaking them into agent-executable tasks
+- **Handle integration** of agent results and resolve conflicts
+
+```bash
+# Claude can delegate comprehensive objectives
+agents delegate "make the application production ready with security, testing, and monitoring"
+
+# Monitor agent progress in real-time
+agents monitor watch
+
+# Generate web dashboard for visual progress tracking
+agents monitor dashboard
+```
+
 ### Custom Task Delegation
 
 ```python
@@ -192,11 +212,13 @@ curl http://localhost:8080/agents/logs
 ```
 your-project/
 ├── .claude/
+│   ├── CLAUDE.md         # Complete integration guide for Claude
 │   ├── agentsync.md      # Agent coordination documentation
 │   ├── tasks.json        # Task definitions
 │   ├── config.env        # Configuration
 │   ├── launch.sh         # Main launcher script
 │   ├── run_agents.sh     # Agent runner
+│   ├── monitor.sh        # Advanced monitoring with dashboard
 │   ├── delegate.py       # Task delegation system
 │   └── logs/            # Agent logs
 │       ├── agent_1.log
