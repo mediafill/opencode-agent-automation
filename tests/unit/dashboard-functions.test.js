@@ -24,6 +24,7 @@ const {
   showAgentDetails,
   closeModal,
   resetGlobalState,
+  rebuildIndexes,
   agents,
   tasks,
   logs,

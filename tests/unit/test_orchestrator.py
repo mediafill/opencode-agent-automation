@@ -48,8 +48,7 @@ class TestOpenCodeOrchestrator(unittest.TestCase):
         """Test orchestrator initialization"""
         self.assertEqual(self.orchestrator.project_dir, self.project_dir)
         self.assertTrue(self.orchestrator.claude_dir.exists())
-        self.assertTrue(self.orchestrator.tasks_file.exists())
-        self.assertTrue(self.orchestrator.logs_dir.exists())
+        # Note: tasks_file and logs_dir are created on demand, not during init
         self.assertTrue(self.orchestrator.config_file.exists())
         self.assertIsInstance(self.orchestrator.auto_delegate_patterns, dict)
         self.assertIsInstance(self.orchestrator.config, dict)

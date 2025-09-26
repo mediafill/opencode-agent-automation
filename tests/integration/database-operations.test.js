@@ -261,94 +261,265 @@ describe('Database Operations Integration Tests', () => {
     });
   });
 
-  describe('Database Consistency and Synchronization', () => {
-    test('maintains consistency between tasks and status databases', async () => {
-      // Add a new task
-      const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
-      const newTask = {
-        id: 'consistency_test_task',
-        type: 'analysis',
+  describe('Database Concurrency and Race Conditions', () => {
+    test('handles concurrent task creation without conflicts', async () => {
+      const concurrentTasks = Array.from({ length: 20 }, (_, i) => ({
+        id: `concurrent_task_${i + 1}`,
+        type: 'testing',
         priority: 'medium',
-        description: 'Consistency test task',
+        description: `Concurrent test task ${i + 1}`,
+        files_pattern: `**/*${i + 1}.js`,
+        created_at: new Date().toISOString(),
+        status: 'pending'
+      }));
+
+      // Simulate concurrent operations
+      const promises = concurrentTasks.map(async (task) => {
+        const currentTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+        currentTasks.push(task);
+        await fs.writeFile(tasksFile, JSON.stringify(currentTasks, null, 2));
+      });
+
+      await Promise.all(promises);
+
+      // Verify all tasks were created without conflicts
+      const finalTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      expect(finalTasks.length).toBe(21); // 1 initial + 20 concurrent
+
+      // Verify no data corruption
+      const taskIds = finalTasks.map(t => t.id);
+      const uniqueIds = new Set(taskIds);
+      expect(uniqueIds.size).toBe(taskIds.length); // No duplicates
+
+      // Verify all tasks have valid data
+      finalTasks.forEach(task => {
+        expect(task).toHaveProperty('id');
+        expect(task).toHaveProperty('type');
+        expect(task).toHaveProperty('description');
+        expect(task).toHaveProperty('created_at');
+      });
+    });
+
+    test('manages concurrent status updates with atomic operations', async () => {
+      // Initialize multiple tasks
+      const initialTasks = Array.from({ length: 10 }, (_, i) => ({
+        id: `status_task_${i + 1}`,
+        type: 'testing',
+        priority: 'medium',
+        description: `Status test task ${i + 1}`,
         files_pattern: '**/*.js',
         created_at: new Date().toISOString(),
         status: 'pending'
-      };
-      tasks.push(newTask);
-      await fs.writeFile(tasksFile, JSON.stringify(tasks, null, 2));
+      }));
 
-      // Add corresponding status
-      const statusData = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
-      statusData.consistency_test_task = {
-        status: 'pending',
-        progress: 0,
-        created_at: new Date().toISOString()
-      };
-      await fs.writeFile(taskStatusFile, JSON.stringify(statusData, null, 2));
+      const initialStatus = {};
+      initialTasks.forEach(task => {
+        initialStatus[task.id] = {
+          status: 'pending',
+          progress: 0,
+          created_at: task.created_at
+        };
+      });
 
-      // Verify consistency
-      const finalTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      await fs.writeFile(tasksFile, JSON.stringify(initialTasks, null, 2));
+      await fs.writeFile(taskStatusFile, JSON.stringify(initialStatus, null, 2));
+
+      // Simulate concurrent status updates
+      const updatePromises = initialTasks.map(async (task, index) => {
+        // Small delay to create potential race conditions
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 10));
+
+        const statusData = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
+        statusData[task.id] = {
+          status: 'running',
+          progress: (index + 1) * 10,
+          started_at: new Date().toISOString(),
+          last_update: new Date().toISOString()
+        };
+        await fs.writeFile(taskStatusFile, JSON.stringify(statusData, null, 2));
+      });
+
+      await Promise.all(updatePromises);
+
+      // Verify all updates were applied
       const finalStatus = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
+      expect(Object.keys(finalStatus)).toHaveLength(11); // 1 initial + 10 new
 
-      const task = finalTasks.find(t => t.id === 'consistency_test_task');
-      expect(task).toBeDefined();
-      expect(finalStatus).toHaveProperty('consistency_test_task');
-      expect(task.status).toBe(finalStatus.consistency_test_task.status);
+      // Verify each task has correct status
+      initialTasks.forEach((task, index) => {
+        expect(finalStatus[task.id].status).toBe('running');
+        expect(finalStatus[task.id].progress).toBe((index + 1) * 10);
+        expect(finalStatus[task.id]).toHaveProperty('started_at');
+        expect(finalStatus[task.id]).toHaveProperty('last_update');
+      });
     });
 
-    test('handles database synchronization during concurrent operations', async () => {
+    test('handles database locks and prevents corruption during simultaneous reads/writes', async () => {
       const operations = [];
+      const numOperations = 50;
 
-      // Simulate concurrent task updates
-      for (let i = 0; i < 5; i++) {
-        operations.push(
-          (async () => {
-            const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
-            const task = tasks[0];
-            task.status = `status_update_${i}`;
-            task.last_modified = new Date().toISOString();
-            await fs.writeFile(tasksFile, JSON.stringify(tasks, null, 2));
-          })()
-        );
+      // Mix of read and write operations
+      for (let i = 0; i < numOperations; i++) {
+        if (i % 3 === 0) {
+          // Read operation
+          operations.push(
+            (async () => {
+              const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+              // Simulate processing time
+              await new Promise(resolve => setTimeout(resolve, Math.random() * 5));
+              return tasks.length;
+            })()
+          );
+        } else {
+          // Write operation
+          operations.push(
+            (async () => {
+              const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+              const newTask = {
+                id: `lock_test_task_${i}_${Date.now()}`,
+                type: 'testing',
+                priority: 'low',
+                description: `Lock test task ${i}`,
+                files_pattern: '**/*.js',
+                created_at: new Date().toISOString(),
+                status: 'pending'
+              };
+              tasks.push(newTask);
+              await fs.writeFile(tasksFile, JSON.stringify(tasks, null, 2));
+              // Simulate processing time
+              await new Promise(resolve => setTimeout(resolve, Math.random() * 5));
+              return true;
+            })()
+          );
+        }
       }
 
-      await Promise.all(operations);
+      const results = await Promise.all(operations);
 
-      // Verify final state is consistent
+      // Verify database integrity
       const finalTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
-      expect(finalTasks).toHaveLength(1);
-      expect(finalTasks[0]).toHaveProperty('id', 'db_test_task_1');
-      expect(finalTasks[0]).toHaveProperty('status');
+      expect(finalTasks.length).toBeGreaterThan(1); // At least original task plus some new ones
+
+      // Verify JSON structure is valid
+      expect(Array.isArray(finalTasks)).toBe(true);
+      finalTasks.forEach(task => {
+        expect(task).toHaveProperty('id');
+        expect(task).toHaveProperty('type');
+        expect(typeof task.id).toBe('string');
+        expect(typeof task.description).toBe('string');
+      });
     });
 
-    test('recovers from database corruption', async () => {
-      // Corrupt the tasks file
-      await fs.writeFile(tasksFile, '{ invalid json content');
+    test('maintains data consistency during rapid successive operations', async () => {
+      const baseTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      const originalLength = baseTasks.length;
 
-      // Attempt to read should fail
-      try {
-        JSON.parse(await fs.readFile(tasksFile, 'utf8'));
-        fail('Should have thrown JSON parse error');
-      } catch (error) {
-        expect(error).toBeInstanceOf(SyntaxError);
+      // Perform rapid successive operations
+      for (let i = 0; i < 100; i++) {
+        const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+        const operation = i % 4;
+
+        switch (operation) {
+          case 0: // Add task
+            tasks.push({
+              id: `rapid_task_${i}`,
+              type: 'testing',
+              priority: 'low',
+              description: `Rapid task ${i}`,
+              files_pattern: '**/*.js',
+              created_at: new Date().toISOString(),
+              status: 'pending'
+            });
+            break;
+          case 1: // Update task
+            if (tasks.length > 0) {
+              const randomIndex = Math.floor(Math.random() * tasks.length);
+              tasks[randomIndex].status = 'running';
+              tasks[randomIndex].updated_at = new Date().toISOString();
+            }
+            break;
+          case 2: // Delete task
+            if (tasks.length > 1) { // Keep at least one task
+              const deleteIndex = Math.floor(Math.random() * (tasks.length - 1)) + 1;
+              tasks.splice(deleteIndex, 1);
+            }
+            break;
+          case 3: // Read-only operation
+            // Just read and verify
+            break;
+        }
+
+        await fs.writeFile(tasksFile, JSON.stringify(tasks, null, 2));
       }
 
-      // Recover by writing valid data
-      const recoveryTasks = [{
-        id: 'recovered_task',
-        type: 'recovery',
-        priority: 'high',
-        description: 'Task recovered after corruption',
-        files_pattern: '**/*.js',
-        created_at: new Date().toISOString(),
-        status: 'pending'
-      }];
+      // Final verification
+      const finalTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      expect(Array.isArray(finalTasks)).toBe(true);
+      expect(finalTasks.length).toBeGreaterThan(0);
 
-      await fs.writeFile(tasksFile, JSON.stringify(recoveryTasks, null, 2));
+      // Verify data integrity
+      finalTasks.forEach(task => {
+        expect(task).toHaveProperty('id');
+        expect(task).toHaveProperty('type');
+        expect(task).toHaveProperty('status');
+        expect(typeof task.id).toBe('string');
+        expect(typeof task.description).toBe('string');
+      });
 
-      const recoveredTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
-      expect(recoveredTasks).toHaveLength(1);
-      expect(recoveredTasks[0].id).toBe('recovered_task');
+      // Verify no duplicate IDs
+      const ids = finalTasks.map(t => t.id);
+      const uniqueIds = new Set(ids);
+      expect(uniqueIds.size).toBe(ids.length);
+    });
+
+    test('handles database contention with proper error recovery', async () => {
+      let corruptionCount = 0;
+      const maxCorruptionAttempts = 5;
+
+      // Simulate database corruption during concurrent access
+      const corruptAndRecover = async () => {
+        try {
+          // Try to corrupt the file during read
+          const content = await fs.readFile(tasksFile, 'utf8');
+          // Simulate corruption by writing invalid JSON
+          await fs.writeFile(tasksFile, content.replace('}', '') + 'invalid');
+          corruptionCount++;
+
+          // Immediate recovery attempt
+          const validTasks = [{
+            id: 'recovery_task',
+            type: 'recovery',
+            priority: 'high',
+            description: 'Task created after corruption recovery',
+            files_pattern: '**/*.js',
+            created_at: new Date().toISOString(),
+            status: 'pending'
+          }];
+          await fs.writeFile(tasksFile, JSON.stringify(validTasks, null, 2));
+
+          return true;
+        } catch (error) {
+          // Recovery failed, try again
+          return false;
+        }
+      };
+
+      // Run multiple corruption/recovery cycles
+      const corruptionPromises = [];
+      for (let i = 0; i < maxCorruptionAttempts; i++) {
+        corruptionPromises.push(corruptAndRecover());
+      }
+
+      const results = await Promise.all(corruptionPromises);
+      const successfulRecoveries = results.filter(r => r).length;
+
+      // At least some recoveries should succeed
+      expect(successfulRecoveries).toBeGreaterThan(0);
+
+      // Final database should be valid
+      const finalTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      expect(Array.isArray(finalTasks)).toBe(true);
+      expect(finalTasks.length).toBeGreaterThan(0);
     });
   });
 
@@ -428,6 +599,162 @@ describe('Database Operations Integration Tests', () => {
         expect(Array.isArray(status.logs)).toBe(true);
         expect(status.logs.length).toBe(10);
       });
+    });
+
+    test('performs efficient bulk operations', async () => {
+      const bulkOperations = [];
+
+      // Create bulk read operations
+      for (let i = 0; i < 20; i++) {
+        bulkOperations.push(
+          (async () => {
+            const start = Date.now();
+            const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+            const duration = Date.now() - start;
+            return { operation: 'read', duration, count: tasks.length };
+          })()
+        );
+      }
+
+      // Create bulk write operations
+      for (let i = 0; i < 10; i++) {
+        bulkOperations.push(
+          (async () => {
+            const start = Date.now();
+            const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+            tasks.push({
+              id: `bulk_op_task_${i}`,
+              type: 'bulk_test',
+              priority: 'low',
+              description: `Bulk operation test task ${i}`,
+              files_pattern: '**/*.js',
+              created_at: new Date().toISOString(),
+              status: 'pending'
+            });
+            await fs.writeFile(tasksFile, JSON.stringify(tasks, null, 2));
+            const duration = Date.now() - start;
+            return { operation: 'write', duration };
+          })()
+        );
+      }
+
+      const results = await Promise.all(bulkOperations);
+
+      // Analyze performance
+      const readOps = results.filter(r => r.operation === 'read');
+      const writeOps = results.filter(r => r.operation === 'write');
+
+      const avgReadTime = readOps.reduce((sum, r) => sum + r.duration, 0) / readOps.length;
+      const avgWriteTime = writeOps.reduce((sum, r) => sum + r.duration, 0) / writeOps.length;
+
+      // Performance expectations
+      expect(avgReadTime).toBeLessThan(100); // Average read under 100ms
+      expect(avgWriteTime).toBeLessThan(200); // Average write under 200ms
+
+      // Verify all operations completed
+      expect(readOps.length).toBe(20);
+      expect(writeOps.length).toBe(10);
+
+      // Verify final state
+      const finalTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      const bulkTasks = finalTasks.filter(t => t.id.startsWith('bulk_op_task_'));
+      expect(bulkTasks.length).toBe(10);
+    });
+
+    test('maintains performance under memory pressure', async () => {
+      // Create a large dataset that approaches memory limits
+      const memoryStressData = Array.from({ length: 500 }, (_, i) => ({
+        id: `memory_task_${i + 1}`,
+        type: 'memory_test',
+        priority: 'low',
+        description: `Memory stress test task ${i + 1} with large description: ${'A'.repeat(1000)}`,
+        files_pattern: `**/*${i + 1}.*`,
+        created_at: new Date().toISOString(),
+        status: 'pending',
+        large_data_field: 'B'.repeat(2000), // Large data field
+        metadata: {
+          complex_object: {
+            nested: {
+              deeply: {
+                nested: {
+                  data: Array.from({ length: 100 }, (_, j) => ({
+                    index: j,
+                    value: Math.random(),
+                    text: `Nested text ${j}`
+                  }))
+                }
+              }
+            }
+          }
+        }
+      }));
+
+      const startTime = Date.now();
+      await fs.writeFile(tasksFile, JSON.stringify(memoryStressData, null, 2));
+      const writeTime = Date.now() - startTime;
+
+      // Should still perform reasonably well
+      expect(writeTime).toBeLessThan(5000); // Under 5 seconds for large dataset
+
+      const readStartTime = Date.now();
+      const readData = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      const readTime = Date.now() - readStartTime;
+
+      expect(readTime).toBeLessThan(3000); // Under 3 seconds to read
+      expect(readData).toHaveLength(500);
+
+      // Verify data integrity for a sample
+      const sampleTask = readData[0];
+      expect(sampleTask).toHaveProperty('large_data_field');
+      expect(sampleTask.large_data_field.length).toBe(2000);
+      expect(sampleTask.metadata.complex_object.nested.deeply.nested.data).toHaveLength(100);
+    });
+
+    test('handles frequent small updates efficiently', async () => {
+      // Start with a base task
+      const baseTask = {
+        id: 'frequent_update_task',
+        type: 'update_test',
+        priority: 'medium',
+        description: 'Task for frequent update testing',
+        files_pattern: '**/*.js',
+        created_at: new Date().toISOString(),
+        status: 'pending',
+        update_count: 0
+      };
+
+      await fs.writeFile(tasksFile, JSON.stringify([baseTask], null, 2));
+
+      const updateOperations = [];
+      const numUpdates = 100;
+
+      for (let i = 0; i < numUpdates; i++) {
+        updateOperations.push(
+          (async () => {
+            const start = Date.now();
+            const tasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+            const task = tasks.find(t => t.id === 'frequent_update_task');
+            task.update_count = i + 1;
+            task.last_update = new Date().toISOString();
+            task.status = i % 2 === 0 ? 'running' : 'pending';
+            await fs.writeFile(tasksFile, JSON.stringify(tasks, null, 2));
+            const duration = Date.now() - start;
+            return duration;
+          })()
+        );
+      }
+
+      const updateTimes = await Promise.all(updateOperations);
+      const avgUpdateTime = updateTimes.reduce((sum, time) => sum + time, 0) / numUpdates;
+
+      // Frequent updates should be reasonably fast
+      expect(avgUpdateTime).toBeLessThan(50); // Under 50ms per update
+
+      // Verify final state
+      const finalTasks = JSON.parse(await fs.readFile(tasksFile, 'utf8'));
+      const finalTask = finalTasks.find(t => t.id === 'frequent_update_task');
+      expect(finalTask.update_count).toBe(numUpdates);
+      expect(finalTask).toHaveProperty('last_update');
     });
   });
 

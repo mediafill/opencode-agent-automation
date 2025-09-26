@@ -193,76 +193,115 @@ describe('API Endpoints Integration Tests', () => {
     });
   });
 
-  describe('System Status API Integration', () => {
-    test('request_status returns comprehensive system information', async () => {
+  describe('System Monitoring API Integration', () => {
+    test('request_system_resources returns detailed resource information', async () => {
       await mockWebSocket.connected;
 
-      mockWebSocket.send(JSON.stringify({ type: 'request_status' }));
+      mockWebSocket.send(JSON.stringify({ type: 'request_system_resources' }));
 
       const response = await mockWebSocket.nextMessage;
       const data = JSON.parse(response);
 
-      expect(data.type).toBe('status_update');
-      expect(data.data).toHaveProperty('agents');
-      expect(data.data).toHaveProperty('tasks');
-      expect(data.data).toHaveProperty('system_resources');
+      expect(data.type).toBe('system_resources');
+      expect(data.data).toHaveProperty('cpu_usage');
+      expect(data.data).toHaveProperty('memory_usage');
+      expect(data.data).toHaveProperty('disk_usage');
+      expect(data.data).toHaveProperty('network_stats');
       expect(data.data).toHaveProperty('timestamp');
 
-      // Check system resources structure
-      const resources = data.data.system_resources;
-      expect(resources).toHaveProperty('cpu_usage');
-      expect(resources).toHaveProperty('memory_usage');
-      expect(resources).toHaveProperty('disk_usage');
-      expect(typeof resources.cpu_usage).toBe('number');
-      expect(typeof resources.memory_usage).toBe('number');
+      // Validate data types
+      expect(typeof data.data.cpu_usage).toBe('number');
+      expect(typeof data.data.memory_usage).toBe('number');
+      expect(data.data.cpu_usage).toBeGreaterThanOrEqual(0);
+      expect(data.data.cpu_usage).toBeLessThanOrEqual(100);
     });
 
-    test('request_claude_processes returns process information', async () => {
+    test('request_process_list returns comprehensive process information', async () => {
       await mockWebSocket.connected;
 
-      mockWebSocket.send(JSON.stringify({ type: 'request_claude_processes' }));
+      mockWebSocket.send(JSON.stringify({ type: 'request_process_list' }));
 
       const response = await mockWebSocket.nextMessage;
       const data = JSON.parse(response);
 
-      expect(data.type).toBe('claude_processes_update');
+      expect(data.type).toBe('process_list');
       expect(data.data).toHaveProperty('processes');
-      expect(data.data).toHaveProperty('total_processes');
-      expect(data.data).toHaveProperty('timestamp');
+      expect(data.data).toHaveProperty('total_count');
+      expect(data.data).toHaveProperty('system_load');
       expect(Array.isArray(data.data.processes)).toBe(true);
-      expect(typeof data.data.total_processes).toBe('number');
     });
 
-    test('request_agent_details returns detailed agent information', async () => {
+    test('request_log_entries returns recent log data', async () => {
       await mockWebSocket.connected;
 
-      // Request details for existing task
       mockWebSocket.send(JSON.stringify({
-        type: 'request_agent_details',
-        agent_id: 'api_test_task_1'
+        type: 'request_log_entries',
+        limit: 10
       }));
 
       const response = await mockWebSocket.nextMessage;
       const data = JSON.parse(response);
 
-      expect(data.type).toBe('agent_details_update');
-      expect(data.data).toHaveProperty('agent_id', 'api_test_task_1');
-      expect(data.data).toHaveProperty('details');
+      expect(data.type).toBe('log_entries');
+      expect(data.data).toHaveProperty('entries');
+      expect(data.data).toHaveProperty('total_count');
+      expect(Array.isArray(data.data.entries)).toBe(true);
+      expect(data.data.entries.length).toBeLessThanOrEqual(10);
     });
 
-    test('request_agent_details handles non-existent agents', async () => {
+    test('request_performance_metrics returns system performance data', async () => {
+      await mockWebSocket.connected;
+
+      mockWebSocket.send(JSON.stringify({ type: 'request_performance_metrics' }));
+
+      const response = await mockWebSocket.nextMessage;
+      const data = JSON.parse(response);
+
+      expect(data.type).toBe('performance_metrics');
+      expect(data.data).toHaveProperty('response_times');
+      expect(data.data).toHaveProperty('throughput');
+      expect(data.data).toHaveProperty('error_rates');
+      expect(data.data).toHaveProperty('timestamp');
+    });
+
+    test('subscribe_to_updates enables real-time notifications', async () => {
       await mockWebSocket.connected;
 
       mockWebSocket.send(JSON.stringify({
-        type: 'request_agent_details',
-        agent_id: 'non_existent_agent'
+        type: 'subscribe_to_updates',
+        channels: ['system_resources', 'task_status']
       }));
 
       const response = await mockWebSocket.nextMessage;
       const data = JSON.parse(response);
 
-      // Should either return empty details or error
-      expect(['agent_details_update', 'error']).toContain(data.type);
+      expect(data.type).toBe('subscription_confirmed');
+      expect(data.channels).toContain('system_resources');
+      expect(data.channels).toContain('task_status');
+    });
+
+    test('unsubscribe_from_updates stops real-time notifications', async () => {
+      await mockWebSocket.connected;
+
+      // First subscribe
+      mockWebSocket.send(JSON.stringify({
+        type: 'subscribe_to_updates',
+        channels: ['system_resources']
+      }));
+
+      await mockWebSocket.nextMessage; // subscription confirmation
+
+      // Then unsubscribe
+      mockWebSocket.send(JSON.stringify({
+        type: 'unsubscribe_from_updates',
+        channels: ['system_resources']
+      }));
+
+      const response = await mockWebSocket.nextMessage;
+      const data = JSON.parse(response);
+
+      expect(data.type).toBe('unsubscription_confirmed');
+      expect(data.channels).toContain('system_resources');
     });
   });
 
@@ -314,6 +353,120 @@ describe('API Endpoints Integration Tests', () => {
 
       expect(data.type).toBe('error');
       expect(data.message).toContain('Invalid task data');
+    });
+
+    test('cancel_task removes task from execution', async () => {
+      await mockWebSocket.connected;
+
+      // First create a task
+      const testTask = {
+        id: 'cancel_test_task',
+        type: 'testing',
+        priority: 'medium',
+        description: 'Task to be cancelled',
+        files_pattern: '**/*.js'
+      };
+
+      mockWebSocket.send(JSON.stringify({
+        type: 'start_task',
+        task: testTask
+      }));
+
+      // Wait for task started confirmation
+      await mockWebSocket.nextMessage;
+
+      // Now cancel it
+      mockWebSocket.send(JSON.stringify({
+        type: 'cancel_task',
+        task_id: 'cancel_test_task'
+      }));
+
+      const response = await mockWebSocket.nextMessage;
+      const data = JSON.parse(response);
+
+      expect(data.type).toBe('task_cancelled');
+      expect(data.task_id).toBe('cancel_test_task');
+    });
+
+    test('retry_task re-queues failed tasks', async () => {
+      await mockWebSocket.connected;
+
+      // Create a task that will fail
+      const failingTask = {
+        id: 'retry_test_task',
+        type: 'testing',
+        priority: 'medium',
+        description: 'Task that will be retried',
+        files_pattern: '**/*.js'
+      };
+
+      mockWebSocket.send(JSON.stringify({
+        type: 'start_task',
+        task: failingTask
+      }));
+
+      // Wait for task started
+      await mockWebSocket.nextMessage;
+
+      // Simulate task failure by updating status
+      const statusData = JSON.parse(await fs.readFile(taskStatusFile, 'utf8'));
+      statusData.retry_test_task = {
+        status: 'failed',
+        progress: 50,
+        error: 'Simulated failure',
+        retry_count: 0
+      };
+      await fs.writeFile(taskStatusFile, JSON.stringify(statusData, null, 2));
+
+      // Now retry the task
+      mockWebSocket.send(JSON.stringify({
+        type: 'retry_task',
+        task_id: 'retry_test_task'
+      }));
+
+      const response = await mockWebSocket.nextMessage;
+      const data = JSON.parse(response);
+
+      expect(data.type).toBe('task_retried');
+      expect(data.task_id).toBe('retry_test_task');
+    });
+
+    test('get_task_status returns detailed task information', async () => {
+      await mockWebSocket.connected;
+
+      mockWebSocket.send(JSON.stringify({
+        type: 'get_task_status',
+        task_id: 'api_test_task_1'
+      }));
+
+      const response = await mockWebSocket.nextMessage;
+      const data = JSON.parse(response);
+
+      expect(data.type).toBe('task_status');
+      expect(data.task).toHaveProperty('id', 'api_test_task_1');
+      expect(data.task).toHaveProperty('status');
+      expect(data.task).toHaveProperty('progress');
+    });
+
+    test('list_tasks returns all tasks with filtering', async () => {
+      await mockWebSocket.connected;
+
+      mockWebSocket.send(JSON.stringify({
+        type: 'list_tasks',
+        filter: { status: 'pending' }
+      }));
+
+      const response = await mockWebSocket.nextMessage;
+      const data = JSON.parse(response);
+
+      expect(data.type).toBe('task_list');
+      expect(Array.isArray(data.tasks)).toBe(true);
+      expect(data.tasks.length).toBeGreaterThan(0);
+
+      // Check that all returned tasks match the filter
+      data.tasks.forEach(task => {
+        expect(task.status).toBe('pending');
+      });
     });
 
     test('task status updates are broadcast in real-time', async () => {

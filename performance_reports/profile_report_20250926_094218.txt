@@ -1,0 +1,63 @@
+Performance Profile Report - 2025-09-26 09:42:18.728258
+============================================================
+
+Top 50 functions by cumulative time:
+----------------------------------------
+         322 function calls (316 primitive calls) in 0.002 seconds
+
+   Ordered by: cumulative time
+   List reduced from 150 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.002    0.002 /usr/lib/python3.13/threading.py:1000(_bootstrap)
+        1    0.000    0.000    0.002    0.002 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:171(run_task_manager)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:524(start)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:108(info)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:99(_log_with_context)
+        2    0.000    0.000    0.001    0.000 /usr/lib/python3.13/logging/__init__.py:1011(handle)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1575(log)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1641(_log)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1667(handle)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/__init__.py:1721(callHandlers)
+        1    0.000    0.000    0.001    0.001 /usr/lib/python3.13/logging/handlers.py:71(emit)
+        1    0.000    0.000    0.001    0.001 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:175(__init__)
+        2    0.000    0.000    0.001    0.000 /usr/lib/python3.13/logging/__init__.py:1139(emit)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:1251(emit)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:717(mkdir)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:1131(flush)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1675(cpu_times)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.mkdir}
+        3    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:988(format)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:166(__fspath__)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:227(__str__)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:148(__truediv__)
+        4    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_abc.py:130(with_segments)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:498(__init__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:540(cpu_times)
+        2    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/logger.py:20(format)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:289(drive)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:1626(makeRecord)
+        5    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:117(__init__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:298(__init__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/handlers.py:189(shouldRollover)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:763(open_binary)
+      2/1    0.000    0.000    0.000    0.000 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:60(start_system_monitoring)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/json/__init__.py:183(dumps)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:277(_raw_path)
+        1    0.000    0.000    0.000    0.000 <string>:1(<lambda>)
+      2/1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:955(start)
+      2/1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:641(wait)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:869(__init__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:699(format)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/threading.py:620(set)
+        2    0.000    0.000    0.000    0.000 <frozen posixpath>:72(join)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:1592(findCaller)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/json/encoder.py:183(encode)
+       26    0.000    0.000    0.000    0.000 {built-in method builtins.isinstance}
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_abc.py:460(is_dir)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.13/pathlib/_local.py:257(_parse_path)
+        1    0.000    0.000    0.000    0.000 {built-in method _thread.start_joinable_thread}
+        1    0.000    0.000    0.000    0.000 {method 'readline' of '_io.BufferedReader' objects}
+        3    0.000    0.000    0.000    0.000 /usr/lib/python3.13/logging/__init__.py:197(_is_internal_frame)
+
+

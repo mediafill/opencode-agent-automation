@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Set, Optional, Any
+from collections import OrderedDict
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -113,14 +114,99 @@ class DashboardServer:
             except Exception as e:
                 logger.warning(f"Could not initialize task manager: {e}")
         
-        # Process monitoring with caching
+        # Process monitoring with enhanced LRU caching
         self.last_process_scan = datetime.now()
         self.process_scan_interval = timedelta(seconds=30)  # Reduced from 10 to 30 seconds
-        self.process_cache = {}  # Cache for process information
-        self.cache_timeout = timedelta(seconds=60)  # Cache validity
         
-        # Ensure directories exist
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        # Enhanced LRU cache for process information
+        self.process_cache = OrderedDict()  # LRU cache: key -> (data, timestamp, access_count)
+        self.cache_max_size = 200  # Maximum cache entries
+        self.cache_ttl = timedelta(seconds=120)  # Cache validity period
+        self.process_change_detection = {}  # Track process changes for invalidation
+        
+    def _get_cached_process_data(self, cache_key: str) -> Optional[Dict]:
+        """Get data from LRU cache with access tracking"""
+        now = datetime.now()
+        
+        if cache_key in self.process_cache:
+            data, timestamp, access_count = self.process_cache[cache_key]
+            
+            # Check if cache entry is still valid
+            if (now - timestamp) < self.cache_ttl:
+                # Move to end (most recently used) and increment access count
+                self.process_cache.move_to_end(cache_key)
+                self.process_cache[cache_key] = (data, timestamp, access_count + 1)
+                return data
+            else:
+                # Remove expired entry
+                del self.process_cache[cache_key]
+                
+        return None
+    
+    def _set_cached_process_data(self, cache_key: str, data: Dict):
+        """Store data in LRU cache with eviction"""
+        now = datetime.now()
+        
+        # Remove expired entries first
+        expired_keys = [
+            key for key, (_, timestamp, _) in self.process_cache.items()
+            if (now - timestamp) >= self.cache_ttl
+        ]
+        for key in expired_keys:
+            del self.process_cache[key]
+        
+        # Evict least recently used if cache is full
+        if len(self.process_cache) >= self.cache_max_size:
+            self.process_cache.popitem(last=False)  # Remove oldest
+        
+        # Add new entry
+        self.process_cache[cache_key] = (data, now, 1)
+        self.process_cache.move_to_end(cache_key)  # Mark as most recently used
+    
+    def _invalidate_process_cache(self, reason: str = "unknown"):
+        """Invalidate process cache with logging"""
+        cache_size = len(self.process_cache)
+        self.process_cache.clear()
+        self.process_change_detection.clear()
+        logger.debug(f"Process cache invalidated ({cache_size} entries cleared): {reason}")
+    
+    def _detect_process_changes(self, current_processes: Dict[str, Dict]) -> bool:
+        """Detect if processes have changed since last scan"""
+        current_pids = set()
+        current_tasks = set()
+        
+        for proc_key, proc_info in current_processes.items():
+            current_pids.add(proc_info['pid'])
+            if proc_info.get('task_id'):
+                current_tasks.add(proc_info['task_id'])
+        
+        # Compare with previous scan
+        prev_pids = self.process_change_detection.get('pids', set())
+        prev_tasks = self.process_change_detection.get('tasks', set())
+        
+        # Update detection state
+        self.process_change_detection['pids'] = current_pids
+        self.process_change_detection['tasks'] = current_tasks
+        
+        # Check for changes
+        pid_changes = current_pids != prev_pids
+        task_changes = current_tasks != prev_tasks
+        
+        if pid_changes or task_changes:
+            logger.debug(f"Process changes detected: PIDs {len(current_pids)}->{len(prev_pids)}, Tasks {len(current_tasks)}->{len(prev_tasks)}")
+            return True
+            
+        return False
+        
+        # Performance optimization caches
+        self._progress_cache = {}  # Cache for progress estimation
+        self._log_cache = {}  # Cache for log-based agent status
+        self._log_content_cache = {}  # Cache for log content
+        self._log_cache_ttl = 30  # 30 seconds TTL for log cache
+        
+        # Log file caching for lazy loading
+        self._log_content_cache: Dict[str, Dict] = {}  # Cache for log file content
+        self._log_cache_ttl = 60  # Log cache TTL in seconds
         
     async def register(self, websocket):
         """Register a new WebSocket client"""
@@ -264,106 +350,124 @@ class DashboardServer:
         return 'pending'
             
     def detect_claude_processes(self) -> Dict[str, Dict]:
-        """Enhanced Claude/OpenCode process detection with caching for performance"""
+        """Enhanced Claude/OpenCode process detection with caching and optimization"""
         now = datetime.now()
-        
+
         # Check if we can use cached data
-        if (now - self.last_process_scan < self.process_scan_interval and 
-            self.claude_processes and 
+        if (now - self.last_process_scan < self.process_scan_interval and
+            self.claude_processes and
             hasattr(self, 'process_cache') and self.process_cache):
             return self.claude_processes
-        
-        # Full scan needed
+
+        # Full scan needed - but optimize the scanning
         claude_processes = {}
-        
-        # Multiple patterns to identify Claude/OpenCode processes
-        claude_patterns = [
-            r'opencode.*run',
-            r'claude.*desktop',
-            r'claude.*cli', 
-            r'anthropic.*claude',
-            r'python.*opencode',
-            r'node.*opencode',
-            r'opencode-agent'
-        ]
-        
+
         try:
+            # Pre-compile regex patterns for better performance
+            if not hasattr(self, '_compiled_patterns'):
+                self._compiled_patterns = [
+                    re.compile(pattern, re.IGNORECASE) for pattern in [
+                        r'opencode.*run',
+                        r'claude.*desktop',
+                        r'claude.*cli',
+                        r'anthropic.*claude',
+                        r'python.*opencode',
+                        r'node.*opencode',
+                        r'opencode-agent'
+                    ]
+                ]
+
             # Use more efficient process iteration with pre-filtering
-            for proc in psutil.process_iter(['pid', 'cmdline', 'create_time', 
-                                           'memory_info', 'cpu_percent', 'status', 'name']):
+            # Only get the fields we actually need
+            processes = []
+            for proc in psutil.process_iter(['pid', 'cmdline', 'create_time',
+                                          'memory_info', 'cpu_percent', 'status', 'name']):
                 try:
                     if not proc.info['cmdline']:
                         continue
-                    
-                    cmdline = ' '.join(proc.info['cmdline']).lower()
+
+                    cmdline_str = ' '.join(proc.info['cmdline']).lower()
                     process_name = proc.info.get('name', '').lower()
-                    
+
                     # Quick pre-filter: check if any Claude-related term exists
-                    is_claude_related = any(term in cmdline or term in process_name 
+                    is_claude_related = any(term in cmdline_str or term in process_name
                                           for term in ['opencode', 'claude', 'anthropic'])
-                    
-                    if not is_claude_related:
-                        continue
-                    
-                    # Detailed pattern matching
+
+                    if is_claude_related:
+                        processes.append(proc)
+
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+
+            # Process only the filtered list
+            for proc in processes:
+                try:
+                    proc_info = proc.info
+                    cmdline = ' '.join(proc_info['cmdline']).lower()
+                    process_name = proc_info.get('name', '').lower()
+
+                    # Use compiled regex patterns for better performance
                     is_claude_process = False
                     process_type = 'unknown'
-                    
-                    for pattern in claude_patterns:
-                        if re.search(pattern, cmdline) or re.search(pattern, process_name):
+
+                    for i, pattern in enumerate(self._compiled_patterns):
+                        if pattern.search(cmdline) or pattern.search(process_name):
                             is_claude_process = True
-                            if 'opencode' in pattern:
-                                process_type = 'opencode'
-                            elif 'claude' in pattern:
-                                process_type = 'claude'
-                            elif 'anthropic' in pattern:
-                                process_type = 'anthropic_claude'
+                            # Map pattern index to type
+                            type_map = ['opencode', 'claude', 'claude', 'anthropic_claude',
+                                      'opencode', 'opencode', 'opencode']
+                            process_type = type_map[i]
                             break
-                    
+
                     if is_claude_process:
                         # Extract additional information
                         task_id = self._extract_task_id_from_cmdline(cmdline)
                         working_dir = self._get_process_working_dir(proc)
-                        
+
                         process_info = {
-                            'pid': proc.info['pid'],
+                            'pid': proc_info['pid'],
                             'type': process_type,
-                            'status': proc.info.get('status', 'unknown'),
-                            'cmdline': ' '.join(proc.info['cmdline']),
-                            'name': proc.info.get('name', ''),
-                            'start_time': datetime.fromtimestamp(proc.info['create_time']).isoformat(),
-                            'memory_usage': proc.info['memory_info'].rss if proc.info['memory_info'] else 0,
+                            'status': proc_info.get('status', 'unknown'),
+                            'cmdline': ' '.join(proc_info['cmdline']),
+                            'name': proc_info.get('name', ''),
+                            'start_time': datetime.fromtimestamp(proc_info['create_time']).isoformat(),
+                            'memory_usage': proc_info['memory_info'].rss if proc_info['memory_info'] else 0,
                             'memory_percent': proc.memory_percent() if hasattr(proc, 'memory_percent') else 0,
-                            'cpu_percent': proc.info.get('cpu_percent', 0),
+                            'cpu_percent': proc_info.get('cpu_percent', 0),
                             'task_id': task_id,
                             'working_dir': working_dir,
                             'is_opencode': 'opencode' in cmdline,
                             'is_claude_desktop': 'claude' in process_name and 'desktop' in cmdline,
                             'discovered_at': datetime.now().isoformat()
                         }
-                        
+
                         # Estimate what this process is doing
                         process_info['activity'] = self._estimate_process_activity(process_info)
-                        
+
                         # Use task_id if available, otherwise use PID
-                        key = task_id if task_id else f"pid_{proc.info['pid']}"
+                        key = task_id if task_id else f"pid_{proc_info['pid']}"
                         claude_processes[key] = process_info
-                        
+
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     continue
                 except Exception as e:
                     logger.debug(f"Error processing process info: {e}")
                     continue
-                    
+
         except Exception as e:
             logger.error(f"Error detecting Claude processes: {e}")
-        
+
         # Update cache
         self.claude_processes = claude_processes
         self.last_process_scan = now
         self.process_cache = claude_processes
-        
+
         return claude_processes
+    
+    def update_agents_from_processes(self):
+        """Update agents from full process scan"""
+        self.claude_processes = self.detect_claude_processes()
+        return self.update_agents_lightweight()
     
     def _extract_task_id_from_cmdline(self, cmdline: str) -> Optional[str]:
         """Extract task ID from command line if present"""
@@ -436,22 +540,35 @@ class DashboardServer:
         return 'pending'
         
     def update_system_resources(self):
-        """Update system resource information"""
+        """Update system resource information with optimized calls"""
         try:
-            cpu_percent = psutil.cpu_percent(interval=1)
+            # Batch system calls to reduce overhead
+            cpu_percent = psutil.cpu_percent(interval=0.1)  # Reduced from 1 second
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
-            
-            # Count active OpenCode processes
-            active_processes = 0
-            for proc in psutil.process_iter(['pid', 'cmdline']):
-                try:
-                    cmdline = ' '.join(proc.info['cmdline'] or [])
-                    if 'opencode run' in cmdline.lower():
-                        active_processes += 1
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            
+
+            # Cache active process count to avoid repeated scanning
+            if not hasattr(self, '_last_process_count_time'):
+                self._last_process_count_time = datetime.now()
+                self._cached_process_count = 0
+
+            # Only recount processes every 30 seconds
+            now = datetime.now()
+            if (now - self._last_process_count_time).total_seconds() > 30:
+                active_processes = 0
+                for proc in psutil.process_iter(['pid', 'cmdline']):
+                    try:
+                        cmdline = ' '.join(proc.info['cmdline'] or [])
+                        if 'opencode run' in cmdline.lower():
+                            active_processes += 1
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+
+                self._cached_process_count = active_processes
+                self._last_process_count_time = now
+            else:
+                active_processes = self._cached_process_count
+
             self.system_resources = {
                 'cpu_usage': cpu_percent,
                 'memory_usage': memory.percent,
@@ -463,7 +580,7 @@ class DashboardServer:
                 'active_processes': active_processes,
                 'timestamp': datetime.now().isoformat()
             }
-            
+
         except Exception as e:
             logger.error(f"Error updating system resources: {e}")
             
@@ -622,6 +739,45 @@ class DashboardServer:
             if any(word in line.lower() for word in ['error', 'failed', 'exception']):
                 return line.strip()[:100]
         return "Unknown error occurred"
+            
+    def get_log_content_lazy(self, task_id: str, max_lines: int = 100) -> List[str]:
+        """Get log content with lazy loading and caching"""
+        log_file = self.logs_dir / f'{task_id}.log'
+        if not log_file.exists():
+            return []
+        
+        cache_key = f"{task_id}_{log_file.stat().st_mtime}"
+        current_time = time.time()
+        
+        # Check cache first
+        if (cache_key in self._log_content_cache and 
+            (current_time - self._log_content_cache[cache_key]['timestamp']) < self._log_cache_ttl):
+            return self._log_content_cache[cache_key]['content'][-max_lines:]
+        
+        # Load from file
+        try:
+            with open(log_file, 'r') as f:
+                lines = f.readlines()
+                # Cache the full content
+                self._log_content_cache[cache_key] = {
+                    'content': lines,
+                    'timestamp': current_time
+                }
+                
+                # Clean old cache entries
+                if len(self._log_content_cache) > 50:  # Limit cache size
+                    oldest_keys = sorted(
+                        self._log_content_cache.keys(),
+                        key=lambda k: self._log_content_cache[k]['timestamp']
+                    )[:10]
+                    for key in oldest_keys:
+                        del self._log_content_cache[key]
+                
+                return lines[-max_lines:]
+                
+        except Exception as e:
+            logger.error(f"Error reading log file {log_file}: {e}")
+            return []
         
     def broadcast_log_entry(self, file_path: str, line: str):
         """Broadcast a new log entry to all clients"""

@@ -1,16 +1,23 @@
 [
   {
-    "id": "lifecycle_task_1",
-    "type": "testing",
-    "priority": "high",
-    "description": "Run comprehensive tests",
-    "files_pattern": "**/*.test.js"
+    "id": "low_priority_task",
+    "type": "cleanup",
+    "priority": "low",
+    "description": "Clean up temp files",
+    "files_pattern": "temp/**/*"
   },
   {
-    "id": "lifecycle_task_2",
-    "type": "documentation",
+    "id": "critical_priority_task",
+    "type": "security",
+    "priority": "critical",
+    "description": "Fix security vulnerability",
+    "files_pattern": "**/*.js"
+  },
+  {
+    "id": "medium_priority_task",
+    "type": "refactor",
     "priority": "medium",
-    "description": "Update API documentation",
-    "files_pattern": "docs/**/*.md"
+    "description": "Refactor legacy code",
+    "files_pattern": "legacy/**/*.js"
   }
 ]

@@ -10,7 +10,7 @@ import time
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Callable, Union
+from typing import Dict, List, Optional, Callable, Union, Any, Set
 from enum import Enum
 import subprocess
 
@@ -85,7 +85,7 @@ class Task:
             'estimated_duration': self.estimated_duration
         }
     
-    def update_status(self, status: TaskStatus, error: str = None):
+    def update_status(self, status: TaskStatus, error: Optional[str] = None):
         """Update task status and trigger callbacks"""
         old_status = self.status
         self.status = status
@@ -170,7 +170,7 @@ class TaskQueue:
             return self.tasks.copy()
 
 class TaskManager:
-    """Central task management system"""
+    """Central task management system with optimized caching"""
     
     def __init__(self, project_dir: Optional[str] = None, max_concurrent: int = 4):
         self.project_dir = Path(project_dir or ".")
@@ -188,12 +188,25 @@ class TaskManager:
         self.status_callbacks: List[Callable] = []
         self.progress_callbacks: List[Callable] = []
         
-        # Execution control
-        self.is_running = False
-        self.executor_thread: Optional[threading.Thread] = None
-        
         # Progress tracking
         self.progress_trackers: Dict[str, threading.Thread] = {}
+        
+        # Caching system for performance optimization
+        self._tasks_cache: Optional[Dict] = None
+        self._status_cache: Optional[Dict] = None
+        self._cache_timestamps: Dict[str, float] = {}
+        self._cache_ttl = 30  # Cache TTL in seconds
+        self._cache_lock = threading.Lock()
+        
+        # Content caching for performance
+        self._content_cache: Dict[str, str] = {}
+        self._file_positions: Dict[str, int] = {}
+        
+        # Indexing system for fast lookups
+        self._task_index: Dict[str, Task] = {}  # task_id -> Task
+        self._status_index: Dict[str, Set[str]] = {}  # status -> set of task_ids
+        self._priority_index: Dict[int, Set[str]] = {}  # priority_value -> set of task_ids
+        self._index_lock = threading.Lock()
         
         # Ensure directories exist
         self.claude_dir.mkdir(exist_ok=True)
@@ -223,28 +236,70 @@ class TaskManager:
             except Exception as e:
                 logger.error(f"Error in progress callback: {e}")
     
-    def load_tasks_from_file(self) -> List[Task]:
-        """Load tasks from tasks.json file"""
-        tasks = []
-        if self.tasks_file.exists():
+    def _is_cache_valid(self, cache_key: str) -> bool:
+        """Check if cache entry is still valid"""
+        if cache_key not in self._cache_timestamps:
+            return False
+        return (time.time() - self._cache_timestamps[cache_key]) < self._cache_ttl
+    
+    def _get_cached_data(self, file_path: Path, cache_key: str) -> Optional[Dict]:
+        """Get data from cache or load from file"""
+        with self._cache_lock:
+            if self._is_cache_valid(cache_key):
+                if cache_key == 'tasks':
+                    return self._tasks_cache
+                elif cache_key == 'status':
+                    return self._status_cache
+            
+            # Load from file
             try:
-                with open(self.tasks_file, 'r') as f:
-                    data = json.load(f)
-                    task_list = data.get('tasks', [])
-                    
-                    for task_data in task_list:
-                        task = Task(task_data)
-                        task.on_status_change = self._notify_status_change
-                        task.on_progress_update = self._notify_progress_update
-                        tasks.append(task)
-                        
+                if file_path.exists():
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        self._cache_timestamps[cache_key] = time.time()
+                        if cache_key == 'tasks':
+                            self._tasks_cache = data
+                        elif cache_key == 'status':
+                            self._status_cache = data
+                        return data
             except Exception as e:
-                logger.error(f"Error loading tasks: {e}")
+                logger.error(f"Error loading {cache_key} from {file_path}: {e}")
+            
+            return None
+    
+    def _get_cached_content(self, task_id: str) -> Optional[str]:
+        """Get cached content for a task"""
+        return self._content_cache.get(task_id)
+    
+    def _invalidate_cache(self, cache_key: str):
+        """Invalidate specific cache entry"""
+        with self._cache_lock:
+            if cache_key == 'tasks':
+                self._tasks_cache = None
+            elif cache_key == 'status':
+                self._status_cache = None
+            if cache_key in self._cache_timestamps:
+                del self._cache_timestamps[cache_key]
+    
+    def load_tasks_from_file(self) -> List[Task]:
+        """Load tasks from tasks.json file with caching"""
+        data = self._get_cached_data(self.tasks_file, 'tasks')
+        if data is None:
+            return []
+            
+        tasks = []
+        task_list = data.get('tasks', [])
         
+        for task_data in task_list:
+            task = Task(task_data)
+            task.on_status_change = self._notify_status_change
+            task.on_progress_update = self._notify_progress_update
+            tasks.append(task)
+            
         return tasks
     
     def save_task_status(self):
-        """Save current task status to file"""
+        """Save current task status to file and invalidate cache"""
         try:
             status_data = {
                 'updated_at': datetime.now().isoformat(),
@@ -256,17 +311,24 @@ class TaskManager:
             with open(self.status_file, 'w') as f:
                 json.dump(status_data, f, indent=2)
                 
+            # Invalidate cache
+            self._invalidate_cache('status')
+                
         except Exception as e:
             logger.error(f"Error saving task status: {e}")
     
     def add_task(self, task_data: Dict) -> Task:
-        """Add a new task"""
+        """Add a new task and invalidate tasks cache"""
         task = Task(task_data)
         task.on_status_change = self._notify_status_change  
         task.on_progress_update = self._notify_progress_update
         
         self.queue.add_task(task)
         self.save_task_status()
+        
+        # Invalidate tasks cache since we might save tasks too
+        self._invalidate_cache('tasks')
+        
         logger.info(f"Added task {task.id} to queue")
         
         return task
@@ -355,30 +417,37 @@ Please analyze the code and implement improvements.
             return False
     
     def start_progress_tracking(self, task: Task):
-        """Start tracking progress for a task with optimized file reading"""
+        """Start tracking progress for a task with optimized incremental file reading"""
         def track_progress():
             last_mtime = 0
-            last_content_hash = 0
-            
+            file_position = self._file_positions.get(task.id, 0)
+
             while task.status == TaskStatus.RUNNING:
                 try:
-                    # Estimate progress based on log file size and content
+                    # Check if log file exists and has been modified
                     if task.log_file and task.log_file.exists():
-                        # Check if file has been modified
                         current_mtime = task.log_file.stat().st_mtime
                         if current_mtime > last_mtime:
+                            # File has been modified, read only new content
                             with open(task.log_file, 'r') as f:
-                                content = f.read()
-                                lines = len(content.splitlines())
-                                
-                                # Simple content hash to avoid re-processing same content
-                                content_hash = hash(content)
-                                if content_hash != last_content_hash:
+                                f.seek(file_position)
+                                new_content = f.read()
+                                if new_content:
+                                    file_position = f.tell()
+                                    self._file_positions[task.id] = file_position
+
+                                    # Get existing cached content and append new content
+                                    existing_content = self._get_cached_content(task.id) or ""
+                                    full_content = existing_content + new_content
+                                    self._update_cached_content(task.id, full_content)
+
+                                    lines = len(full_content.splitlines())
+
                                     # Simple heuristic for progress estimation
-                                    if 'completed successfully' in content.lower():
+                                    if 'completed successfully' in full_content.lower():
                                         task.update_progress(100)
                                         break
-                                    elif 'error' in content.lower() or 'failed' in content.lower():
+                                    elif 'error' in full_content.lower() or 'failed' in full_content.lower():
                                         break
                                     else:
                                         # Estimate based on log lines and time elapsed
@@ -386,19 +455,18 @@ Please analyze the code and implement improvements.
                                             elapsed = (datetime.now() - task.started_at).total_seconds()
                                             time_progress = min(90, (elapsed / task.estimated_duration) * 100)
                                             line_progress = min(80, lines * 2)
-                                            
+
                                             estimated_progress = max(time_progress, line_progress)
                                             task.update_progress(int(estimated_progress))
-                                    
-                                    last_content_hash = content_hash
+
                                 last_mtime = current_mtime
-                    
-                    time.sleep(10)  # Check every 10 seconds instead of 5
-                    
+
+                    time.sleep(15)  # Increased from 10 to 15 seconds
+
                 except Exception as e:
                     logger.error(f"Error tracking progress for {task.id}: {e}")
                     break
-        
+
         tracker_thread = threading.Thread(target=track_progress, daemon=True)
         tracker_thread.start()
         self.progress_trackers[task.id] = tracker_thread

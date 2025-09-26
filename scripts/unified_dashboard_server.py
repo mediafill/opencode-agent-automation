@@ -106,6 +106,9 @@ class UnifiedDashboardServer:
         self.system_resources = {}
         self.claude_processes = {}
         
+        # Performance optimization: reverse index for task_id -> process lookup
+        self.task_process_index = {}  # task_id -> process_info
+        
         # File monitoring
         self.observer = Observer()
         self.log_handler = LogFileHandler(self)
@@ -246,8 +249,15 @@ class UnifiedDashboardServer:
                     continue
                     
         except Exception as e:
-            logger.error(f"Error detecting Claude processes: {e}")
+            logger.error(f"Error during process iteration: {e}")
             
+        # Update reverse index for fast task_id lookups
+        self.task_process_index = {}
+        for proc_id, proc_info in claude_processes.items():
+            task_id = proc_info.get('task_id')
+            if task_id:
+                self.task_process_index[task_id] = proc_info
+        
         return claude_processes
     
     def _safe_memory_percent(self, proc):
@@ -340,25 +350,17 @@ class UnifiedDashboardServer:
                     self.tasks[task_id] = task
     
     def get_task_runtime_status(self, task_id: str) -> str:
-        """Get runtime status of a task by checking processes and logs"""
-        # First check if we have this in our Claude processes tracking
-        if task_id in self.claude_processes:
-            proc_info = self.claude_processes[task_id]
+        """Get runtime status of a task by checking processes and logs with O(1) lookup"""
+        # First check if we have this task in our reverse index (O(1) lookup)
+        if task_id in self.task_process_index:
+            proc_info = self.task_process_index[task_id]
             if proc_info['status'] in ['running', 'sleeping']:
                 return 'running'
+            else:
+                return 'stopped'
         
         # Check if there's a running process for this task using enhanced detection
-        try:
-            for proc_id, proc_info in self.claude_processes.items():
-                if proc_info.get('task_id') == task_id:
-                    if proc_info['status'] in ['running', 'sleeping']:
-                        return 'running'
-                    else:
-                        return 'stopped'
-        except Exception:
-            pass
-        
-        # Fallback to process grep
+        # Fallback to process grep for tasks not in our index
         try:
             result = subprocess.run(
                 ['pgrep', '-f', f'opencode.*{task_id}'],

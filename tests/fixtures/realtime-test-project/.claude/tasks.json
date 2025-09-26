@@ -1,0 +1,20 @@
+[
+  {
+    "id": "realtime_task_1",
+    "type": "testing",
+    "priority": "high",
+    "description": "Real-time test task 1",
+    "files_pattern": "**/*.test.js",
+    "created_at": "2025-09-26T15:44:50.208Z",
+    "status": "pending"
+  },
+  {
+    "id": "realtime_task_2",
+    "type": "monitoring",
+    "priority": "medium",
+    "description": "Real-time test task 2",
+    "files_pattern": "**/*.js",
+    "created_at": "2025-09-26T15:44:50.209Z",
+    "status": "running"
+  }
+]

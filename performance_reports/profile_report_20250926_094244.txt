@@ -1,0 +1,63 @@
+Performance Profile Report - 2025-09-26 09:42:44.658289
+============================================================
+
+Top 50 functions by cumulative time:
+----------------------------------------
+         56820 function calls (54478 primitive calls) in 10.005 seconds
+
+   Ordered by: cumulative time
+   List reduced from 147 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.002    0.002   10.006   10.006 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:152(run_server)
+       16    0.001    0.000    1.632    0.102 /usr/lib/python3.13/site-packages/psutil/__init__.py:1774(cpu_percent)
+      320    0.017    0.000    0.600    0.002 /usr/lib/python3.13/site-packages/psutil/__init__.py:2139(net_io_counters)
+ 2912/608    0.012    0.000    0.535    0.001 {built-in method builtins.sum}
+      160    0.005    0.000    0.533    0.003 /home/ara/Documents/code/opencode-agent-automation/scripts/performance_profiler.py:73(<genexpr>)
+      320    0.106    0.000    0.303    0.001 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:990(net_io_counters)
+      368    0.005    0.000    0.280    0.001 /usr/lib/python3.13/site-packages/psutil/_common.py:736(wrap_numbers)
+      368    0.160    0.000    0.272    0.001 /usr/lib/python3.13/site-packages/psutil/_common.py:679(run)
+       32    0.000    0.000    0.101    0.003 /usr/lib/python3.13/site-packages/psutil/__init__.py:1981(virtual_memory)
+       32    0.037    0.001    0.100    0.003 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:351(virtual_memory)
+    24848    0.091    0.000    0.091    0.000 {method 'append' of 'list' objects}
+       48    0.003    0.000    0.083    0.002 /usr/lib/python3.13/site-packages/psutil/__init__.py:2081(disk_io_counters)
+      368    0.059    0.000    0.067    0.000 {method 'readlines' of '_io._IOBase' objects}
+      432    0.056    0.000    0.060    0.000 {built-in method _io.open}
+      368    0.002    0.000    0.059    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:767(open_text)
+       48    0.005    0.000    0.057    0.001 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:1073(disk_io_counters)
+       32    0.000    0.000    0.057    0.002 /usr/lib/python3.13/site-packages/psutil/_common.py:367(usage_percent)
+       48    0.056    0.001    0.056    0.001 {built-in method builtins.round}
+     3218    0.044    0.000    0.044    0.000 {method 'split' of 'str' objects}
+      384    0.011    0.000    0.031    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:1078(read_procfs)
+      336    0.012    0.000    0.018    0.000 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:231(is_storage_device)
+     2880    0.017    0.000    0.017    0.000 {method 'rfind' of 'str' objects}
+       32    0.000    0.000    0.017    0.001 /usr/lib/python3.13/site-packages/psutil/__init__.py:1675(cpu_times)
+       32    0.003    0.000    0.017    0.001 /usr/lib/python3.13/site-packages/psutil/_pslinux.py:540(cpu_times)
+     5760    0.016    0.000    0.016    0.000 {method 'strip' of 'str' objects}
+      366    0.011    0.000    0.015    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:668(_remove_dead_reminders)
+      432    0.012    0.000    0.012    0.000 {method '__exit__' of '_io._IOBase' objects}
+     3434    0.010    0.000    0.010    0.000 {built-in method builtins.len}
+       32    0.009    0.000    0.009    0.000 {method 'readline' of '_io.BufferedReader' objects}
+      736    0.005    0.000    0.008    0.000 <frozen codecs>:322(decode)
+      480    0.006    0.000    0.007    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:2125(<genexpr>)
+      336    0.006    0.000    0.006    0.000 {built-in method posix.access}
+        1    0.001    0.001    0.006    0.006 /home/ara/Documents/code/opencode-agent-automation/scripts/dashboard_server.py:85(__init__)
+     1888    0.005    0.000    0.005    0.000 {method 'split' of 'bytes' objects}
+       16    0.000    0.000    0.005    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1815(calculate)
+      732    0.004    0.000    0.004    0.000 {method 'keys' of 'dict' objects}
+       16    0.002    0.000    0.004    0.000 /usr/lib/python3.13/site-packages/psutil/__init__.py:1753(_cpu_times_deltas)
+      368    0.003    0.000    0.004    0.000 <frozen codecs>:312(__init__)
+        1    0.000    0.000    0.003    0.003 /home/ara/Documents/code/opencode-agent-automation/scripts/task_manager.py:175(__init__)
+      370    0.003    0.000    0.003    0.000 {method '__exit__' of '_thread.lock' objects}
+       64    0.000    0.000    0.003    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:763(open_binary)
+        8    0.002    0.000    0.003    0.000 /usr/lib/python3.13/pathlib/_abc.py:130(with_segments)
+        7    0.000    0.000    0.003    0.000 /usr/lib/python3.13/pathlib/_local.py:148(__truediv__)
+      736    0.003    0.000    0.003    0.000 {built-in method _codecs.utf_8_decode}
+      586    0.002    0.000    0.002    0.000 {built-in method __new__ of type object at 0x7f64418eb2e0}
+      480    0.002    0.000    0.002    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:834(get_procfs_path)
+       48    0.001    0.000    0.002    0.000 <frozen genericpath>:16(exists)
+      448    0.001    0.000    0.001    0.000 {built-in method builtins.getattr}
+       32    0.001    0.000    0.001    0.000 /usr/lib/python3.13/site-packages/psutil/_common.py:403(wrapper)
+       50    0.001    0.000    0.001    0.000 {built-in method posix.stat}
+
+

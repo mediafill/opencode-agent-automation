@@ -734,7 +734,7 @@ function updateLogs() {
     const logsHtml = logs.slice(-50).reverse().map(log => `
         <div class="log-entry">
             <span class="log-time">${formatTime(log.time)}</span>
-            <span class="log-level-${log.level}">[${log.level.toUpperCase()}]</span>
+            <span class="log-level-${log.level || 'info'}">[${(log.level || 'info').toUpperCase()}]</span>
             <span class="log-message">${log.message}</span>
             ${log.agent ? `<span class="log-agent">(${log.agent})</span>` : ''}
         </div>
@@ -1486,6 +1486,7 @@ if (typeof module !== 'undefined' && module.exports) {
         clearAllFilters,
         exportFilteredAgents,
         resetGlobalState,
+        rebuildIndexes, // Add rebuildIndexes to exports
         agents,
         tasks,
         logs,
