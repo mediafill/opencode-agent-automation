@@ -27,13 +27,11 @@ except ImportError:
     CACHE_AVAILABLE = False
 
 try:
-    from intelligent_cache import (
-        get_cache, cache_file_operation, cache_process_operation,
-        invalidate_file_cache, invalidate_process_cache
-    )
-    CACHE_AVAILABLE = True
-except ImportError:
-    CACHE_AVAILABLE = False
+    from delegate import TaskDelegator
+    TASK_DELEGATOR_AVAILABLE = True
+except Exception:
+    TaskDelegator = None
+    TASK_DELEGATOR_AVAILABLE = False
 
 class OpenCodeOrchestrator:
     """Main orchestrator for managing OpenCode agents"""
@@ -88,55 +86,75 @@ class OpenCodeOrchestrator:
         # Load or create config
         self.config = self._load_config()
 
+    def _default_config(self) -> Dict:
+        """Return the default orchestrator configuration"""
+        return {
+            'auto_delegate': True,
+            'max_concurrent_agents': 4,
+            'monitor_interval': 5,
+            'auto_retry_failed': True,
+            'delegation_history': [],
+            'spawn_method': 'launch_script'
+        }
+
+    def _ensure_config_defaults(self, config: Dict) -> Dict:
+        """Ensure all default keys exist in configuration"""
+        defaults = self._default_config()
+        updated = False
+
+        for key, value in defaults.items():
+            if key not in config:
+                config[key] = value
+                updated = True
+
+        if updated:
+            try:
+                self._save_config(config)
+            except Exception as e:
+                print(f"Warning: Could not persist updated config defaults: {e}")
+
+        return config
+
     def _load_config(self) -> Dict:
         """Load orchestrator configuration with intelligent caching"""
+        default_config = self._default_config()
+
         if CACHE_AVAILABLE:
             try:
-                # Use intelligent cache for config loading
                 cache = get_cache()
                 cache_key = f"config_{self.config_file.name}"
 
                 cached_config = cache.get(cache_key)
                 if cached_config is not None:
+                    if isinstance(cached_config, dict):
+                        cached_config = self._ensure_config_defaults(cached_config)
                     return cached_config
 
-                # Load from file and cache it
                 if self.config_file.exists():
                     with open(self.config_file, 'r', encoding='utf-8') as f:
                         config = json.load(f)
-                        # Validate config structure
                         if not isinstance(config, dict):
                             raise ValueError("Config file must contain a JSON object")
+                        config = self._ensure_config_defaults(config)
                         cache.set(cache_key, config, cache_type='config')
                         return config
             except Exception as e:
                 print(f"Warning: Error using intelligent cache for config: {e}")
                 # Fall back to direct loading
 
-        # Fallback to original implementation
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    # Validate config structure
                     if not isinstance(config, dict):
                         raise ValueError("Config file must contain a JSON object")
-                    return config
+                    return self._ensure_config_defaults(config)
         except (json.JSONDecodeError, IOError, OSError, ValueError) as e:
             print(f"Warning: Error loading config file {self.config_file}: {e}")
             print("Using default configuration")
         except Exception as e:
             print(f"Unexpected error loading config: {e}")
             print("Using default configuration")
-
-        # Default configuration
-        default_config = {
-            'auto_delegate': True,
-            'max_concurrent_agents': 4,
-            'monitor_interval': 5,
-            'auto_retry_failed': True,
-            'delegation_history': []
-        }
 
         try:
             self._save_config(default_config)
@@ -232,12 +250,26 @@ class OpenCodeOrchestrator:
                     'reason': 'Auto-delegation disabled and no matching patterns'
                 }
 
+            spawn_method = os.getenv(
+                'OPENCODE_DELEGATION_PROVIDER',
+                self.config.get('spawn_method', 'launch_script')
+            )
+            spawn_method = (spawn_method or 'launch_script').lower().strip()
+
+            if spawn_method in ['claude', 'launch', 'launch_script']:
+                normalized_provider = 'launch_script'
+            elif spawn_method == 'opencode_cli':
+                normalized_provider = 'opencode_cli'
+            else:
+                normalized_provider = 'launch_script'
+
             # Log delegation
             delegation_entry = {
                 'timestamp': datetime.now().isoformat(),
                 'objective': objective,
                 'task_type': task_type,
-                'matched_keywords': keywords
+                'matched_keywords': keywords,
+                'provider': normalized_provider
             }
 
             try:
@@ -246,47 +278,120 @@ class OpenCodeOrchestrator:
             except Exception as e:
                 print(f"Warning: Could not save delegation history: {e}")
 
-            # Execute delegation
-            try:
-                launch_script = self.claude_dir / 'launch.sh'
-                if not launch_script.exists():
-                    return {
-                        'delegated': False,
-                        'reason': f'Launch script not found: {launch_script}'
-                    }
+            if normalized_provider == 'opencode_cli':
+                return self._delegate_via_opencode_cli(objective, task_type, keywords)
 
-                cmd = [
-                    str(launch_script),
-                    'delegate',
-                    objective
-                ]
-
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-
-                return {
-                    'delegated': True,
-                    'task_type': task_type,
-                    'matched_keywords': keywords,
-                    'return_code': result.returncode,
-                    'stdout': result.stdout,
-                    'stderr': result.stderr
-                }
-
-            except subprocess.TimeoutExpired:
-                return {
-                    'delegated': False,
-                    'reason': 'Delegation command timed out'
-                }
-            except (subprocess.SubprocessError, OSError) as e:
-                return {
-                    'delegated': False,
-                    'reason': f'Failed to execute delegation command: {e}'
-                }
+            return self._delegate_via_launch_script(objective, task_type, keywords)
 
         except Exception as e:
             return {
                 'delegated': False,
                 'reason': f'Unexpected error during delegation: {e}'
+            }
+
+    def _delegate_via_launch_script(self, objective: str, task_type: Optional[str], keywords: List[str]) -> Dict:
+        """Delegate tasks using the legacy launch.sh workflow"""
+        try:
+            launch_script = self.claude_dir / 'launch.sh'
+            if not launch_script.exists():
+                return {
+                    'delegated': False,
+                    'reason': f'Launch script not found: {launch_script}',
+                    'provider': 'launch_script'
+                }
+
+            cmd = [
+                str(launch_script),
+                'delegate',
+                objective
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            return {
+                'delegated': True,
+                'task_type': task_type,
+                'matched_keywords': keywords,
+                'return_code': result.returncode,
+                'stdout': result.stdout,
+                'stderr': result.stderr,
+                'provider': 'launch_script'
+            }
+
+        except subprocess.TimeoutExpired:
+            return {
+                'delegated': False,
+                'reason': 'Delegation command timed out',
+                'provider': 'launch_script'
+            }
+        except (subprocess.SubprocessError, OSError) as e:
+            return {
+                'delegated': False,
+                'reason': f'Failed to execute delegation command: {e}',
+                'provider': 'launch_script'
+            }
+
+    def _delegate_via_opencode_cli(self, objective: str, task_type: Optional[str], keywords: List[str]) -> Dict:
+        """Delegate tasks by invoking the OpenCode CLI directly"""
+        if not TASK_DELEGATOR_AVAILABLE or TaskDelegator is None:
+            return {
+                'delegated': False,
+                'reason': 'TaskDelegator module not available for OpenCode CLI delegation',
+                'provider': 'opencode_cli'
+            }
+
+        try:
+            delegator = TaskDelegator(str(self.project_dir))
+            max_concurrent = max(1, int(self.config.get('max_concurrent_agents', 4)))
+
+            tasks = delegator.generate_tasks(objective)
+            delegator.save_tasks(tasks)
+
+            priority_order = {'high': 0, 'medium': 1, 'low': 2}
+            tasks.sort(key=lambda x: priority_order.get(x.get('priority', 'medium'), 3))
+
+            processes = []
+            for task in tasks:
+                while len([p for p in processes if p.poll() is None]) >= max_concurrent:
+                    time.sleep(1)
+                    processes = [p for p in processes if p.poll() is None]
+
+                process = delegator.run_opencode_agent(task)
+                processes.append(process)
+                time.sleep(1)
+
+            completed = 0
+            failures = 0
+            for process in processes:
+                return_code = process.wait()
+                if return_code == 0:
+                    completed += 1
+                else:
+                    failures += 1
+
+            summary = (
+                f"OpenCode CLI delegated {len(tasks)} task(s). "
+                f"Completed: {completed}. Failed: {failures}."
+            )
+
+            return {
+                'delegated': True,
+                'task_type': task_type,
+                'matched_keywords': keywords,
+                'return_code': 0 if failures == 0 else 1,
+                'stdout': summary,
+                'stderr': '' if failures == 0 else 'One or more tasks exited with errors',
+                'provider': 'opencode_cli',
+                'tasks_started': len(tasks),
+                'tasks_completed': completed,
+                'tasks_failed': failures
+            }
+
+        except Exception as e:
+            return {
+                'delegated': False,
+                'reason': f'Failed to delegate via OpenCode CLI: {e}',
+                'provider': 'opencode_cli'
             }
 
     def monitor_agents(self, continuous: bool = False) -> Dict:

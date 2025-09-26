@@ -13,6 +13,8 @@ import threading
 from pathlib import Path
 import argparse
 import sys
+from datetime import datetime
+from typing import Optional
 try:
     from intelligent_cache import (
         get_cache, cache_system_operation, cache_process_operation,
@@ -74,54 +76,59 @@ class PerformanceProfiler:
     def start_system_monitoring(self):
         """Start monitoring system resources with intelligent caching"""
         self.system_stats = []
+        self._last_sample = 0  # Track last sample time
 
         def monitor():
             while self.is_profiling:
                 try:
                     current_time = time.time()
+                    
+                    # Sample every 5 seconds instead of 1 to reduce overhead
+                    if current_time - self._last_sample > 5.0:
+                        # Use cached system operations to reduce expensive psutil calls
+                        if CACHE_AVAILABLE:
+                            # Cache CPU usage (expensive operation)
+                            cpu_percent = cache_system_operation(
+                                lambda: psutil.cpu_percent(interval=0.5), "cpu_percent"
+                            )
 
-                    # Use cached system operations to reduce expensive psutil calls
-                    if CACHE_AVAILABLE:
-                        # Cache CPU usage (expensive operation)
-                        cpu_percent = cache_system_operation(
-                            lambda: psutil.cpu_percent(interval=0.1), "cpu_percent"
-                        )
+                            # Cache memory info (expensive operation)
+                            memory_info = cache_system_operation(
+                                lambda: psutil.virtual_memory(), "virtual_memory"
+                            )
+                            memory_percent = memory_info.percent
+                            memory_used = memory_info.used
 
-                        # Cache memory info (expensive operation)
-                        memory_info = cache_system_operation(
-                            lambda: psutil.virtual_memory(), "virtual_memory"
-                        )
-                        memory_percent = memory_info.percent
-                        memory_used = memory_info.used
+                            # Cache disk I/O (expensive operation)
+                            disk_io = cache_system_operation(
+                                self._get_disk_io, "disk_io"
+                            )
 
-                        # Cache disk I/O (expensive operation)
-                        disk_io = cache_system_operation(
-                            self._get_disk_io, "disk_io"
-                        )
+                            # Cache network I/O with existing throttling
+                            network_io = cache_system_operation(
+                                self._get_network_io, "network_io"
+                            )
+                        else:
+                            # Fallback to direct calls if cache not available
+                            cpu_percent = psutil.cpu_percent(interval=0.5)
+                            memory_info = psutil.virtual_memory()
+                            memory_percent = memory_info.percent
+                            memory_used = memory_info.used
+                            disk_io = self._get_disk_io()
+                            network_io = self._get_network_io()
 
-                        # Cache network I/O with existing throttling
-                        network_io = cache_system_operation(
-                            self._get_network_io, "network_io"
-                        )
-                    else:
-                        # Fallback to direct calls if cache not available
-                        cpu_percent = psutil.cpu_percent(interval=0.1)
-                        memory_info = psutil.virtual_memory()
-                        memory_percent = memory_info.percent
-                        memory_used = memory_info.used
-                        disk_io = self._get_disk_io()
-                        network_io = self._get_network_io()
-
-                    stats = {
-                        "timestamp": current_time,
-                        "cpu_percent": cpu_percent,
-                        "memory_percent": memory_percent,
-                        "memory_used": memory_used,
-                        "disk_io": disk_io,
-                        "network_io": network_io,
-                    }
-                    self.system_stats.append(stats)
-                    time.sleep(1.0)
+                        stats = {
+                            "timestamp": current_time,
+                            "cpu_percent": cpu_percent,
+                            "memory_percent": memory_percent,
+                            "memory_used": memory_used,
+                            "disk_io": disk_io,
+                            "network_io": network_io,
+                        }
+                        self.system_stats.append(stats)
+                        self._last_sample = current_time
+                    
+                    time.sleep(2.0)  # Reduced sleep time since we sample less frequently
                 except Exception as e:
                     print(f"Error monitoring system: {e}")
                     break

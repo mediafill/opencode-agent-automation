@@ -1,0 +1,6 @@
+{
+  "health_check_interval": 3,
+  "agent_timeout": 10,
+  "max_slave_agents": 3,
+  "master_id": "master_d50fa2d5"
+}

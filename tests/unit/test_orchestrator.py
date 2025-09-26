@@ -61,7 +61,7 @@ class TestOpenCodeOrchestrator(unittest.TestCase):
 
         config = self.orchestrator._load_config()
 
-        expected_keys = ['auto_delegate', 'max_concurrent_agents', 'monitor_interval', 'auto_retry_failed', 'delegation_history']
+        expected_keys = ['auto_delegate', 'max_concurrent_agents', 'monitor_interval', 'auto_retry_failed', 'delegation_history', 'spawn_method']
         for key in expected_keys:
             self.assertIn(key, config)
 
@@ -70,6 +70,7 @@ class TestOpenCodeOrchestrator(unittest.TestCase):
         self.assertEqual(config['monitor_interval'], 5)
         self.assertTrue(config['auto_retry_failed'])
         self.assertEqual(config['delegation_history'], [])
+        self.assertEqual(config['spawn_method'], 'launch_script')
 
     def test_load_config_existing_file(self):
         """Test loading config from existing file"""
@@ -86,7 +87,10 @@ class TestOpenCodeOrchestrator(unittest.TestCase):
 
         config = self.orchestrator._load_config()
 
-        self.assertEqual(config, test_config)
+        expected_config = dict(test_config)
+        expected_config['spawn_method'] = 'launch_script'
+
+        self.assertEqual(config, expected_config)
 
     def test_save_config(self):
         """Test saving config to file"""
@@ -158,12 +162,14 @@ class TestOpenCodeOrchestrator(unittest.TestCase):
         self.assertEqual(result['return_code'], 0)
         self.assertEqual(result['stdout'], "Success")
         self.assertEqual(result['stderr'], "")
+        self.assertEqual(result['provider'], 'launch_script')
 
         # Check delegation was logged
         self.assertEqual(len(self.orchestrator.config['delegation_history']), 1)
         delegation = self.orchestrator.config['delegation_history'][0]
         self.assertEqual(delegation['objective'], "Test security audit")
         self.assertEqual(delegation['task_type'], 'security')
+        self.assertEqual(delegation['provider'], 'launch_script')
 
     @mock.patch('subprocess.run')
     def test_delegate_task_failure(self, mock_run):
@@ -175,6 +181,7 @@ class TestOpenCodeOrchestrator(unittest.TestCase):
         self.assertTrue(result['delegated'])
         self.assertEqual(result['return_code'], 1)
         self.assertEqual(result['stderr'], "Error occurred")
+        self.assertEqual(result['provider'], 'launch_script')
 
     @mock.patch('subprocess.run')
     def test_delegate_task_auto_delegate_disabled(self, mock_run):
@@ -197,6 +204,54 @@ class TestOpenCodeOrchestrator(unittest.TestCase):
 
         self.assertTrue(result['delegated'])
         mock_run.assert_called_once()
+        self.assertEqual(result['provider'], 'launch_script')
+
+    @mock.patch('orchestrator.TaskDelegator')
+    def test_delegate_task_opencode_cli_provider(self, mock_task_delegator):
+        """Test delegation using the OpenCode CLI provider"""
+        self.orchestrator.config['spawn_method'] = 'opencode_cli'
+
+        mock_instance = mock.Mock()
+        mock_instance.generate_tasks.return_value = [
+            {
+                'id': 'task_high',
+                'type': 'testing',
+                'priority': 'high',
+                'description': 'Do a thing'
+            },
+            {
+                'id': 'task_medium',
+                'type': 'testing',
+                'priority': 'medium',
+                'description': 'Do another thing'
+            }
+        ]
+        mock_instance.save_tasks.return_value = None
+
+        process_one = mock.Mock()
+        process_one.poll.return_value = None
+        process_one.wait.return_value = 0
+        process_two = mock.Mock()
+        process_two.poll.return_value = None
+        process_two.wait.return_value = 0
+
+        mock_instance.run_opencode_agent.side_effect = [process_one, process_two]
+        mock_task_delegator.return_value = mock_instance
+
+        result = self.orchestrator.delegate_task("Add comprehensive tests")
+
+        self.assertTrue(result['delegated'])
+        self.assertEqual(result['provider'], 'opencode_cli')
+        self.assertEqual(result['tasks_started'], 2)
+        self.assertEqual(result['tasks_failed'], 0)
+        self.assertEqual(result['return_code'], 0)
+
+        mock_task_delegator.assert_called_once_with(str(self.project_dir))
+        mock_instance.generate_tasks.assert_called_once()
+        self.assertGreaterEqual(mock_instance.run_opencode_agent.call_count, 2)
+
+        delegation = self.orchestrator.config['delegation_history'][-1]
+        self.assertEqual(delegation['provider'], 'opencode_cli')
 
     @mock.patch('subprocess.run')
     def test_monitor_agents_continuous_true(self, mock_run):
@@ -393,8 +448,9 @@ class TestOpenCodeOrchestratorEdgeCases(unittest.TestCase):
 
         # Should not crash
         result = self.orchestrator.delegate_task("Test task")
-        self.assertTrue(result['delegated'])
-        self.assertIn('return_code', result)
+        self.assertFalse(result['delegated'])
+        self.assertEqual(result.get('provider'), 'launch_script')
+        self.assertIn('reason', result)
 
     def test_analyze_request_empty_string(self):
         """Test analyzing empty request string"""

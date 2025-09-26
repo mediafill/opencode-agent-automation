@@ -38,8 +38,80 @@ except ImportError:
 class AgentRole(Enum):
     """Agent roles in the hierarchy"""
     MASTER = "master"
-    SLAVE = "slave"
     COORDINATOR = "coordinator"
+    SLAVE = "slave"
+    SUPERVISOR = "supervisor"
+
+class AgentPermission(Enum):
+    """Agent permissions for role-based access control"""
+    TASK_ASSIGNMENT = "task_assignment"
+    AGENT_MANAGEMENT = "agent_management"
+    SYSTEM_MONITORING = "system_monitoring"
+    RESOURCE_ALLOCATION = "resource_allocation"
+    CONFIGURATION_MANAGEMENT = "configuration_management"
+    COMMUNICATION_RELAY = "communication_relay"
+
+class AgentHierarchy:
+    """Manages agent hierarchy and role relationships"""
+
+    # Role hierarchy: higher number = higher authority
+    ROLE_LEVELS = {
+        AgentRole.SLAVE: 1,
+        AgentRole.COORDINATOR: 2,
+        AgentRole.SUPERVISOR: 3,
+        AgentRole.MASTER: 4
+    }
+
+    # Role permissions mapping
+    ROLE_PERMISSIONS = {
+        AgentRole.SLAVE: {
+            AgentPermission.TASK_ASSIGNMENT,  # Can receive tasks
+            AgentPermission.COMMUNICATION_RELAY,  # Can communicate with peers
+        },
+        AgentRole.COORDINATOR: {
+            AgentPermission.TASK_ASSIGNMENT,
+            AgentPermission.COMMUNICATION_RELAY,
+            AgentPermission.RESOURCE_ALLOCATION,  # Can allocate resources to slaves
+            AgentPermission.SYSTEM_MONITORING,  # Can monitor slave health
+        },
+        AgentRole.SUPERVISOR: {
+            AgentPermission.TASK_ASSIGNMENT,
+            AgentPermission.COMMUNICATION_RELAY,
+            AgentPermission.RESOURCE_ALLOCATION,
+            AgentPermission.SYSTEM_MONITORING,
+            AgentPermission.AGENT_MANAGEMENT,  # Can manage slave agents
+        },
+        AgentRole.MASTER: {
+            AgentPermission.TASK_ASSIGNMENT,
+            AgentPermission.COMMUNICATION_RELAY,
+            AgentPermission.RESOURCE_ALLOCATION,
+            AgentPermission.SYSTEM_MONITORING,
+            AgentPermission.AGENT_MANAGEMENT,
+            AgentPermission.CONFIGURATION_MANAGEMENT,  # Can modify system config
+        }
+    }
+
+    @classmethod
+    def can_delegate_to(cls, from_role: AgentRole, to_role: AgentRole) -> bool:
+        """Check if one role can delegate tasks to another role"""
+        return cls.ROLE_LEVELS[from_role] >= cls.ROLE_LEVELS[to_role]
+
+    @classmethod
+    def has_permission(cls, role: AgentRole, permission: AgentPermission) -> bool:
+        """Check if a role has a specific permission"""
+        return permission in cls.ROLE_PERMISSIONS.get(role, set())
+
+    @classmethod
+    def get_subordinate_roles(cls, role: AgentRole) -> Set[AgentRole]:
+        """Get all roles that this role can manage"""
+        current_level = cls.ROLE_LEVELS[role]
+        return {r for r, level in cls.ROLE_LEVELS.items() if level < current_level}
+
+    @classmethod
+    def get_superior_roles(cls, role: AgentRole) -> Set[AgentRole]:
+        """Get all roles that can manage this role"""
+        current_level = cls.ROLE_LEVELS[role]
+        return {r for r, level in cls.ROLE_LEVELS.items() if level > current_level}
 
 class AgentStatus(Enum):
     """Agent status states"""
@@ -99,10 +171,10 @@ class AgentMessage:
 class SlaveAgent:
     """Represents a slave agent in the system"""
 
-    def __init__(self, agent_id: str, process_info: Dict[str, Any]):
+    def __init__(self, agent_id: str, process_info: Dict[str, Any], role: AgentRole = AgentRole.SLAVE):
         self.agent_id = agent_id
         self.process_info = process_info
-        self.role = AgentRole.SLAVE
+        self.role = role
         self.status = AgentStatus.INITIALIZING
         self.last_heartbeat = datetime.now()
         self.capabilities: Set[str] = set()
@@ -114,6 +186,9 @@ class SlaveAgent:
             'tasks_failed': 0
         }
         self.health_score = 100  # 0-100 health score
+        self.parent_agent: Optional[str] = None  # For hierarchical relationships
+        self.subordinate_agents: Set[str] = set()  # Agents this agent manages
+        self.permissions: Set[AgentPermission] = AgentHierarchy.ROLE_PERMISSIONS.get(role, set())
 
     def update_health(self, cpu_percent: float, memory_mb: float):
         """Update agent health based on resource usage"""
@@ -292,8 +367,9 @@ class MasterAgentOrchestrator:
         except Exception as e:
             logger.error(f"Error discovering slave agents: {e}")
 
-    def register_slave_agent(self, agent_id: str, capabilities: Optional[List[str]] = None) -> bool:
-        """Register a new slave agent"""
+    def register_slave_agent(self, agent_id: str, capabilities: Optional[List[str]] = None,
+                           role: AgentRole = AgentRole.SLAVE, parent_agent: Optional[str] = None) -> bool:
+        """Register a new slave agent with role and hierarchy information"""
         if len(self.slave_agents) >= self.max_slave_agents:
             logger.warning(f"Maximum slave agents ({self.max_slave_agents}) reached")
             return False
@@ -302,13 +378,29 @@ class MasterAgentOrchestrator:
             logger.warning(f"Agent {agent_id} already registered")
             return False
 
-        # Create slave agent entry (will be populated when agent reports)
-        slave = SlaveAgent(agent_id, {})
+        # Validate role hierarchy
+        if parent_agent and parent_agent not in self.slave_agents:
+            logger.warning(f"Parent agent {parent_agent} not found")
+            return False
+
+        if parent_agent:
+            parent_role = self.slave_agents[parent_agent].role
+            if not AgentHierarchy.can_delegate_to(parent_role, role):
+                logger.warning(f"Parent agent {parent_agent} cannot manage role {role.value}")
+                return False
+
+        # Create slave agent entry
+        slave = SlaveAgent(agent_id, {}, role)
         slave.capabilities = set(capabilities or [])
         slave.status = AgentStatus.READY
+        slave.parent_agent = parent_agent
+
+        # Update parent agent's subordinates if applicable
+        if parent_agent:
+            self.slave_agents[parent_agent].subordinate_agents.add(agent_id)
 
         self.slave_agents[agent_id] = slave
-        logger.info(f"Registered slave agent: {agent_id}")
+        logger.info(f"Registered {role.value} agent: {agent_id}")
         return True
 
     def unregister_slave_agent(self, agent_id: str):
@@ -354,6 +446,136 @@ class MasterAgentOrchestrator:
 
         logger.info(f"Assigned task {task_id} to agent {selected_agent.agent_id}")
         return selected_agent.agent_id
+
+    def assign_task_hierarchically(self, task_id: str, task_data: Dict[str, Any],
+                                 target_role: Optional[AgentRole] = None) -> Optional[str]:
+        """Assign task using hierarchical delegation"""
+        # Find agents by role if specified
+        if target_role:
+            available_agents = [
+                agent for agent in self.slave_agents.values()
+                if agent.is_healthy() and agent.status == AgentStatus.READY and agent.role == target_role
+            ]
+        else:
+            available_agents = [
+                agent for agent in self.slave_agents.values()
+                if agent.is_healthy() and agent.status == AgentStatus.READY
+            ]
+
+        if not available_agents:
+            logger.warning("No available agents for hierarchical task assignment")
+            return None
+
+        # Use load balancer to select agent
+        selected_agent = self.load_balancer(available_agents)
+        if not selected_agent:
+            return None
+
+        # Check permissions for task assignment
+        if not AgentHierarchy.has_permission(selected_agent.role, AgentPermission.TASK_ASSIGNMENT):
+            logger.warning(f"Agent {selected_agent.agent_id} lacks TASK_ASSIGNMENT permission")
+            return None
+
+        # Assign task
+        selected_agent.current_task = task_id
+        selected_agent.status = AgentStatus.BUSY
+        self.task_assignments[task_id] = selected_agent.agent_id
+
+        # Send assignment message
+        message = AgentMessage(
+            MessageType.TASK_ASSIGNMENT,
+            self.master_id,
+            selected_agent.agent_id,
+            {'task_id': task_id, 'task_data': task_data}
+        )
+        self._send_message(message)
+
+        logger.info(f"Hierarchically assigned task {task_id} to {selected_agent.role.value} agent {selected_agent.agent_id}")
+        return selected_agent.agent_id
+
+    def get_agents_by_role(self, role: AgentRole) -> List[SlaveAgent]:
+        """Get all agents with a specific role"""
+        return [agent for agent in self.slave_agents.values() if agent.role == role]
+
+    def get_agent_hierarchy(self) -> Dict[str, Any]:
+        """Get the complete agent hierarchy structure"""
+        hierarchy = {
+            'master': self.master_id,
+            'coordinators': [],
+            'supervisors': [],
+            'slaves': []
+        }
+
+        for agent in self.slave_agents.values():
+            agent_info = {
+                'id': agent.agent_id,
+                'status': agent.status.value,
+                'health': agent.health_score,
+                'parent': agent.parent_agent,
+                'subordinates': list(agent.subordinate_agents),
+                'current_task': agent.current_task
+            }
+
+            if agent.role == AgentRole.COORDINATOR:
+                hierarchy['coordinators'].append(agent_info)
+            elif agent.role == AgentRole.SUPERVISOR:
+                hierarchy['supervisors'].append(agent_info)
+            elif agent.role == AgentRole.SLAVE:
+                hierarchy['slaves'].append(agent_info)
+
+        return hierarchy
+
+    def promote_agent(self, agent_id: str, new_role: AgentRole) -> bool:
+        """Promote an agent to a higher role"""
+        if agent_id not in self.slave_agents:
+            logger.warning(f"Agent {agent_id} not found")
+            return False
+
+        agent = self.slave_agents[agent_id]
+        current_level = AgentHierarchy.ROLE_LEVELS[agent.role]
+        new_level = AgentHierarchy.ROLE_LEVELS[new_role]
+
+        if new_level <= current_level:
+            logger.warning(f"Cannot promote {agent_id} from {agent.role.value} to {new_role.value}")
+            return False
+
+        # Update role and permissions
+        agent.role = new_role
+        agent.permissions = AgentHierarchy.ROLE_PERMISSIONS.get(new_role, set())
+
+        logger.info(f"Promoted agent {agent_id} to {new_role.value}")
+        return True
+
+    def delegate_to_coordinator(self, coordinator_id: str, task_data: Dict[str, Any]) -> bool:
+        """Delegate task coordination to a coordinator agent"""
+        if coordinator_id not in self.slave_agents:
+            logger.warning(f"Coordinator {coordinator_id} not found")
+            return False
+
+        coordinator = self.slave_agents[coordinator_id]
+        if coordinator.role != AgentRole.COORDINATOR:
+            logger.warning(f"Agent {coordinator_id} is not a coordinator")
+            return False
+
+        if not AgentHierarchy.has_permission(coordinator.role, AgentPermission.RESOURCE_ALLOCATION):
+            logger.warning(f"Coordinator {coordinator_id} lacks RESOURCE_ALLOCATION permission")
+            return False
+
+        # Send coordination message
+        message = AgentMessage(
+            MessageType.COORDINATION_SIGNAL,
+            self.master_id,
+            coordinator_id,
+            {
+                'signal_type': 'coordinate_tasks',
+                'task_data': task_data,
+                'timestamp': datetime.now().isoformat()
+            }
+        )
+        self._send_message(message)
+
+        logger.info(f"Delegated coordination to coordinator {coordinator_id}")
+        return True
 
     def _reassign_task(self, task_id: str, failed_agent_id: str):
         """Reassign a task from a failed agent"""

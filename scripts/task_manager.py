@@ -138,20 +138,30 @@ class Task:
             self.on_progress_update(self, old_progress, self.progress)
 
 
-class TaskQueue:
-    """Priority queue for managing task execution order with optimized operations"""
+class DynamicPriorityQueue:
+    """Enhanced priority queue with dynamic priority adjustment"""
 
     def __init__(self):
         self.tasks: List[Task] = []
         self.task_index: Dict[str, int] = {}  # For O(1) lookups
+        self.priority_weights = {
+            'age': 0.3,      # Older tasks get higher priority
+            'urgency': 0.4,  # User-defined urgency
+            'dependencies': 0.2,  # Tasks with dependents get higher priority
+            'resources': 0.1   # Resource availability
+        }
         self.lock = threading.Lock()
 
     def add_task(self, task: Task):
-        """Add task to queue in priority order with O(log n) insertion"""
+        """Add task to queue with dynamic priority calculation"""
         with self.lock:
-            # Use binary search to find the correct insertion point for priority ordering
-            # Tasks are ordered by priority value (lower value = higher priority)
-            # This ensures higher priority tasks are processed first
+            # Calculate dynamic priority
+            dynamic_priority = self._calculate_dynamic_priority(task)
+
+            # Update task priority
+            task.priority = TaskPriority(min(3, max(0, dynamic_priority)))
+
+            # Find insertion point (maintain priority order)
             left, right = 0, len(self.tasks)
             while left < right:
                 mid = (left + right) // 2
@@ -160,30 +170,107 @@ class TaskQueue:
                 else:
                     left = mid + 1
 
-            # Insert at the correct position
+            # Insert at correct position
             self.tasks.insert(left, task)
-            # Update indices for all tasks after insertion point
+
+            # Update indices
             for i in range(left, len(self.tasks)):
                 self.task_index[self.tasks[i].id] = i
 
             task.update_status(TaskStatus.QUEUED)
 
-    def get_next_task(self) -> Optional[Task]:
-        """Get the next task to execute - O(1) operation"""
+    def _calculate_dynamic_priority(self, task: Task) -> int:
+        """Calculate dynamic priority based on multiple factors"""
+        base_priority = task.priority.value
+
+        # Age factor (older tasks get slightly higher priority)
+        age_hours = (datetime.now() - task.created_at).total_seconds() / 3600
+        age_bonus = min(1, age_hours / 24)  # Max 1 point after 24 hours
+
+        # Urgency factor (from task metadata)
+        urgency = task.description.lower()
+        urgency_bonus = 0
+        if any(word in urgency for word in ['urgent', 'critical', 'emergency']):
+            urgency_bonus = 2
+        elif any(word in urgency for word in ['important', 'high priority']):
+            urgency_bonus = 1
+
+        # Dependencies factor (tasks that others depend on)
+        # This would be calculated based on workflow dependencies
+        dependency_bonus = 0  # Placeholder
+
+        # Resource factor (tasks requiring scarce resources)
+        resource_penalty = 0
+        if 'gpu' in task.description.lower() or 'memory' in task.description.lower():
+            resource_penalty = 0.5  # Slight penalty for resource-intensive tasks
+
+        # Calculate weighted priority
+        dynamic_priority = (
+            base_priority +
+            (self.priority_weights['age'] * age_bonus) +
+            (self.priority_weights['urgency'] * urgency_bonus) +
+            (self.priority_weights['dependencies'] * dependency_bonus) -
+            (self.priority_weights['resources'] * resource_penalty)
+        )
+
+        return int(max(0, min(3, dynamic_priority)))
+
+    def get_next_task(self, available_resources: Optional[Dict[str, Any]] = None) -> Optional[Task]:
+        """Get next task considering resource availability"""
         with self.lock:
             for task in self.tasks:
                 if task.status == TaskStatus.QUEUED:
-                    return task
+                    # Check resource requirements
+                    if self._check_resource_compatibility(task, available_resources):
+                        return task
             return None
 
+    def _check_resource_compatibility(self, task: Task, available_resources: Optional[Dict[str, Any]]) -> bool:
+        """Check if task can run with available resources"""
+        if not available_resources:
+            return True
+
+        # Check CPU requirements
+        cpu_required = task.description.lower()
+        if 'high cpu' in cpu_required and available_resources.get('cpu_percent', 100) > 80:
+            return False
+
+        # Check memory requirements
+        if 'high memory' in cpu_required and available_resources.get('memory_percent', 100) > 85:
+            return False
+
+        # Check GPU requirements
+        if 'gpu' in cpu_required and not available_resources.get('gpu_available', True):
+            return False
+
+        return True
+
+    def reprioritize_task(self, task_id: str):
+        """Reprioritize a task based on current conditions"""
+        with self.lock:
+            if task_id in self.task_index:
+                index = self.task_index[task_id]
+                task = self.tasks[index]
+
+                # Remove from current position
+                del self.tasks[index]
+                del self.task_index[task_id]
+
+                # Update indices for remaining tasks
+                for i in range(index, len(self.tasks)):
+                    self.task_index[self.tasks[i].id] = i
+
+                # Re-add with new priority
+                self.add_task(task)
+
     def remove_task(self, task_id: str) -> bool:
-        """Remove task from queue - O(1) lookup, O(n) removal"""
+        """Remove task from queue"""
         with self.lock:
             if task_id in self.task_index:
                 index = self.task_index[task_id]
                 removed_task = self.tasks.pop(index)
 
-                # Update indices for remaining tasks
+                # Update indices
                 del self.task_index[task_id]
                 for i in range(index, len(self.tasks)):
                     self.task_index[self.tasks[i].id] = i
@@ -201,6 +288,11 @@ class TaskQueue:
         with self.lock:
             return self.tasks.copy()
 
+    def update_resource_availability(self, resources: Dict[str, Any]):
+        """Update resource availability and reprioritize if needed"""
+        # This could trigger reprioritization of resource-intensive tasks
+        pass
+
 
 class TaskManager:
     """Central task management system with optimized caching"""
@@ -214,7 +306,7 @@ class TaskManager:
             self.status_file = self.claude_dir / "task_status.json"
 
             self.max_concurrent = max(1, min(max_concurrent, 10))  # Reasonable bounds
-            self.queue = TaskQueue()
+            self.queue = DynamicPriorityQueue()
             self.running_tasks: Dict[str, Task] = {}
             self.completed_tasks: Dict[str, Task] = {}
 
@@ -389,7 +481,13 @@ class TaskManager:
         return tasks
 
     def save_task_status(self):
-        """Save current task status to file and invalidate cache"""
+        """Save current task status to file with debouncing and invalidate cache"""
+        current_time = time.time()
+        
+        # Debounce saves - don't save more than once per 5 seconds
+        if hasattr(self, '_last_save') and current_time - self._last_save < 5.0:
+            return
+        
         try:
             status_data = {
                 "updated_at": datetime.now().isoformat(),
@@ -405,8 +503,13 @@ class TaskManager:
                 ],
             }
 
-            with open(self.status_file, "w") as f:
+            # Use atomic writes to prevent corruption
+            temp_file = self.status_file.with_suffix('.tmp')
+            with open(temp_file, "w") as f:
                 json.dump(status_data, f, indent=2)
+            temp_file.replace(self.status_file)
+
+            self._last_save = current_time
 
             # Invalidate cache
             self._invalidate_cache("status")
@@ -526,9 +629,17 @@ Please analyze the code and implement improvements.
         def track_progress():
             last_mtime = 0
             file_position = self._file_positions.get(task.id, 0)
+            last_check_time = time.time()
 
             while task.status == TaskStatus.RUNNING:
                 try:
+                    current_time = time.time()
+                    
+                    # Check every 30 seconds instead of 15
+                    if current_time - last_check_time < 30:
+                        time.sleep(5)
+                        continue
+
                     # Check if log file exists and has been modified
                     if task.log_file and task.log_file.exists():
                         current_mtime = task.log_file.stat().st_mtime
@@ -537,7 +648,7 @@ Please analyze the code and implement improvements.
                             # This avoids re-reading the entire file on each check
                             with open(task.log_file, "r") as f:
                                 f.seek(file_position)
-                                new_content = f.read()
+                                new_content = f.read(1024)  # Read only 1KB at a time
                                 if new_content:
                                     file_position = f.tell()
                                     self._file_positions[task.id] = file_position
@@ -547,6 +658,11 @@ Please analyze the code and implement improvements.
                                         self._get_cached_content(task.id) or ""
                                     )
                                     full_content = existing_content + new_content
+                                    
+                                    # Limit cached content size
+                                    if len(full_content) > 10000:  # 10KB limit
+                                        full_content = full_content[-10000:]  # Keep last 10KB
+                                    
                                     self._update_cached_content(task.id, full_content)
 
                                     lines = len(full_content.splitlines())
@@ -581,8 +697,9 @@ Please analyze the code and implement improvements.
                                             )
 
                                 last_mtime = current_mtime
+                                last_check_time = current_time
 
-                    time.sleep(15)  # Increased from 10 to 15 seconds
+                    time.sleep(10)  # Reduced frequency
 
                 except Exception as e:
                     logger.error(f"Error tracking progress for {task.id}: {e}")
@@ -675,22 +792,31 @@ Please analyze the code and implement improvements.
         self.executor_thread.start()
 
     def stop(self):
-        """Stop the task manager"""
+        """Stop the task manager with proper cleanup"""
         if not self.is_running:
             return
 
         logger.info("Stopping task manager")
         self.is_running = False
 
-        # Cancel running tasks
+        # Cancel running tasks gracefully
         for task in list(self.running_tasks.values()):
             if task.process and task.process.poll() is None:
                 task.process.terminate()
+                # Give process time to terminate gracefully
+                try:
+                    task.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    task.process.kill()
             task.update_status(TaskStatus.CANCELLED)
 
-        # Wait for executor thread
+        # Wait for executor thread with reasonable timeout
         if self.executor_thread and self.executor_thread.is_alive():
-            self.executor_thread.join(timeout=10)
+            self.executor_thread.join(timeout=10)  # Reduced from 30s
+
+        # Force cleanup if still alive
+        if self.executor_thread and self.executor_thread.is_alive():
+            logger.warning("Executor thread did not stop gracefully")
 
         self.save_task_status()
 

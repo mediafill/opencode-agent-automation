@@ -14,7 +14,7 @@ def get_version():
         with open('opencode_agent_automation.py', 'r') as f:
             for line in f:
                 if line.startswith('__version__'):
-                    return line.split('=')[1].strip().strip('"\''')
+                    return line.split('=')[1].strip().strip('"\'')
     except Exception:
         pass
     return '2.0.0'

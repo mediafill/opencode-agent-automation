@@ -315,6 +315,32 @@ grep -r "coverage\|test\|lint" .claude/logs/
 
 ## Configuration Management
 
+### Delegation Providers
+Claude can launch OpenCode work in two different ways and will default to the legacy launch script. Control the behavior with the `spawn_method` key inside `.claude/orchestrator_config.json` or override it per run with the `OPENCODE_DELEGATION_PROVIDER` environment variable.
+
+- `launch_script` *(default)* – call `.claude/launch.sh delegate "<objective>"` just like manual runs.
+- `opencode_cli` – use the OpenCode CLI via TaskDelegator to spawn and monitor agents directly.
+
+Example configuration:
+
+```json
+{
+  "spawn_method": "opencode_cli"
+}
+```
+
+Environment override:
+
+```bash
+# fish shell
+set -x OPENCODE_DELEGATION_PROVIDER opencode_cli
+
+# bash/zsh
+export OPENCODE_DELEGATION_PROVIDER=opencode_cli
+```
+
+If the CLI route is selected but TaskDelegator is unavailable, the orchestrator reports the failure so you can switch back to the launch script or install the CLI helpers.
+
 ### Environment Variables
 Edit `.claude/config.env`:
 ```bash
