@@ -1,0 +1,27 @@
+# Coverage configuration for different tools
+# This file can be used if switching to other coverage tools
+
+[run]
+branch = True
+source = .
+omit = 
+    */node_modules/*
+    */coverage/*
+    */.claude/*
+    */tests/*
+    */examples/*
+    */__mocks__/*
+    */logs/*
+    jest.config.js
+    */*.test.js
+    */*.spec.js
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+
+[html]
+directory = coverage_html_report

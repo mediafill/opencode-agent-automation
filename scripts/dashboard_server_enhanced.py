@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-OpenCode Agent Dashboard WebSocket Server
-Provides real-time data to the web dashboard
+Enhanced OpenCode Agent Dashboard WebSocket Server
+Provides real-time data to the web dashboard with proper Claude process detection
 """
 
 import asyncio
-import websockets
 import json
 import os
 import time
@@ -19,6 +18,14 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Set, Optional, Any
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
+# Try to import websockets, fallback gracefully if not available
+try:
+    import websockets
+    WEBSOCKETS_AVAILABLE = True
+except ImportError:
+    WEBSOCKETS_AVAILABLE = False
+    print("Warning: websockets not available. Install with: pip install websockets")
 
 try:
     from logger import StructuredLogger
@@ -34,6 +41,7 @@ try:
 except ImportError:
     TASK_MANAGER_AVAILABLE = False
     logger.warning("TaskManager not available, using basic task tracking")
+
 
 class LogFileHandler(FileSystemEventHandler):
     """Handles log file changes and broadcasts updates"""
@@ -70,18 +78,22 @@ class LogFileHandler(FileSystemEventHandler):
         except Exception as e:
             logger.error(f"Error processing log file {file_path}: {e}")
 
-class DashboardServer:
-    """WebSocket server for the OpenCode agent dashboard"""
+
+class EnhancedDashboardServer:
+    """Enhanced WebSocket server for the OpenCode agent dashboard"""
     
-    def __init__(self, project_dir: str = None, port: int = 8080):
+    def __init__(self, project_dir: Optional[str] = None, port: int = 8080):
         self.project_dir = Path(project_dir) if project_dir else Path.cwd()
         self.claude_dir = self.project_dir / '.claude'
         self.logs_dir = self.claude_dir / 'logs'
         self.tasks_file = self.claude_dir / 'tasks.json'
         self.port = port
         
-        # WebSocket connections
-        self.clients: Set[websockets.WebSocketServerProtocol] = set()
+        # WebSocket connections (if available)
+        if WEBSOCKETS_AVAILABLE:
+            self.clients: Set = set()
+        else:
+            self.clients = set()
         
         # Data storage
         self.agents = {}
@@ -107,84 +119,175 @@ class DashboardServer:
         # Process monitoring
         self.last_process_scan = datetime.now()
         self.process_scan_interval = timedelta(seconds=10)
+        self.running = False
         
         # Ensure directories exist
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         
-    async def register(self, websocket):
-        """Register a new WebSocket client"""
-        self.clients.add(websocket)
-        logger.info(f"Client connected. Total clients: {len(self.clients)}")
+        logger.info(f"Enhanced Dashboard Server initialized")
+        logger.info(f"WebSocket support: {'Enabled' if WEBSOCKETS_AVAILABLE else 'Disabled'}")
+        logger.info(f"Task Manager support: {'Enabled' if TASK_MANAGER_AVAILABLE else 'Disabled'}")
+
+    def detect_claude_processes(self) -> Dict[str, Dict]:
+        """Enhanced Claude/OpenCode process detection with detailed information"""
+        claude_processes = {}
         
-        # Send current status to new client
-        await self.send_full_status(websocket)
+        # Multiple patterns to identify Claude/OpenCode processes
+        claude_patterns = [
+            r'opencode.*run',
+            r'claude.*desktop',
+            r'claude.*cli', 
+            r'anthropic.*claude',
+            r'python.*opencode',
+            r'node.*opencode',
+            r'opencode-agent',
+            r'\.vscode.*claude',
+            r'cursor.*claude'
+        ]
         
-    async def unregister(self, websocket):
-        """Unregister a WebSocket client"""
-        self.clients.discard(websocket)
-        logger.info(f"Client disconnected. Total clients: {len(self.clients)}")
-        
-    async def send_to_client(self, websocket, data):
-        """Send data to a specific client"""
         try:
-            await websocket.send(json.dumps(data))
-        except websockets.exceptions.ConnectionClosed:
-            await self.unregister(websocket)
+            for proc in psutil.process_iter(['pid', 'cmdline', 'create_time', 
+                                           'memory_info', 'cpu_percent', 'status', 'name']):
+                try:
+                    if not proc.info['cmdline']:
+                        continue
+                        
+                    cmdline = ' '.join(proc.info['cmdline']).lower()
+                    process_name = proc.info.get('name', '').lower()
+                    
+                    # Check if this matches any Claude/OpenCode pattern
+                    is_claude_process = False
+                    process_type = 'unknown'
+                    
+                    for pattern in claude_patterns:
+                        if re.search(pattern, cmdline) or re.search(pattern, process_name):
+                            is_claude_process = True
+                            if 'opencode' in pattern:
+                                process_type = 'opencode'
+                            elif 'claude' in pattern:
+                                process_type = 'claude'
+                            elif 'anthropic' in pattern:
+                                process_type = 'anthropic_claude'
+                            elif 'cursor' in pattern:
+                                process_type = 'cursor_claude'
+                            break
+                    
+                    if is_claude_process:
+                        # Extract additional information
+                        task_id = self._extract_task_id_from_cmdline(cmdline)
+                        working_dir = self._get_process_working_dir(proc)
+                        
+                        process_info = {
+                            'pid': proc.info['pid'],
+                            'type': process_type,
+                            'status': proc.info.get('status', 'unknown'),
+                            'cmdline': ' '.join(proc.info['cmdline']),
+                            'name': proc.info.get('name', ''),
+                            'start_time': datetime.fromtimestamp(proc.info['create_time']).isoformat(),
+                            'memory_usage': proc.info['memory_info'].rss if proc.info['memory_info'] else 0,
+                            'memory_percent': self._safe_memory_percent(proc),
+                            'cpu_percent': proc.info.get('cpu_percent', 0),
+                            'task_id': task_id,
+                            'working_dir': working_dir,
+                            'is_opencode': 'opencode' in cmdline,
+                            'is_claude_desktop': 'claude' in process_name and 'desktop' in cmdline,
+                            'discovered_at': datetime.now().isoformat()
+                        }
+                        
+                        # Estimate what this process is doing
+                        process_info['activity'] = self._estimate_process_activity(process_info)
+                        
+                        # Use task_id if available, otherwise use PID
+                        key = task_id if task_id else f"pid_{proc.info['pid']}"
+                        claude_processes[key] = process_info
+                        
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+                except Exception as e:
+                    logger.debug(f"Error processing process info: {e}")
+                    continue
+                    
         except Exception as e:
-            logger.error(f"Error sending to client: {e}")
+            logger.error(f"Error detecting Claude processes: {e}")
             
-    async def broadcast(self, data):
-        """Broadcast data to all connected clients"""
-        if not self.clients:
-            return
-            
-        message = json.dumps(data)
-        disconnected = set()
-        
-        for client in self.clients.copy():
-            try:
-                await client.send(message)
-            except websockets.exceptions.ConnectionClosed:
-                disconnected.add(client)
-            except Exception as e:
-                logger.error(f"Error broadcasting to client: {e}")
-                disconnected.add(client)
-        
-        # Remove disconnected clients
-        for client in disconnected:
-            self.clients.discard(client)
-            
-    async def send_full_status(self, websocket):
-        """Send complete current status to a client"""
-        status_data = {
-            'type': 'full_status',
-            'agents': list(self.agents.values()),
-            'tasks': list(self.tasks.values()),
-            'logs': self.logs[-100:],  # Last 100 logs
-            'resources': self.system_resources,
-            'claude_processes': list(self.claude_processes.values())
-        }
-        await self.send_to_client(websocket, status_data)
+        return claude_processes
     
-    def _on_task_status_change(self, task, old_status, new_status):
-        """Handle task status changes from task manager"""
-        asyncio.create_task(self.broadcast({
-            'type': 'task_status_change',
-            'task_id': task.id,
-            'old_status': old_status.value,
-            'new_status': new_status.value,
-            'task': task.to_dict()
-        }))
+    def _safe_memory_percent(self, proc):
+        """Safely get memory percentage"""
+        try:
+            return proc.memory_percent()
+        except:
+            return 0.0
     
-    def _on_task_progress_update(self, task, old_progress, new_progress):
-        """Handle task progress updates from task manager"""
-        asyncio.create_task(self.broadcast({
-            'type': 'task_progress_update',
-            'task_id': task.id,
-            'old_progress': old_progress,
-            'new_progress': new_progress
-        }))
+    def _extract_task_id_from_cmdline(self, cmdline: str) -> Optional[str]:
+        """Extract task ID from command line if present"""
+        # Look for task ID patterns
+        patterns = [
+            r'task[_-]([a-zA-Z0-9_-]+)',
+            r'--task[=\s]+([a-zA-Z0-9_-]+)',
+            r'id[=:]([a-zA-Z0-9_-]+)'
+        ]
         
+        for pattern in patterns:
+            match = re.search(pattern, cmdline, re.IGNORECASE)
+            if match:
+                return match.group(1)
+                
+        return None
+    
+    def _get_process_working_dir(self, proc) -> Optional[str]:
+        """Get working directory of a process"""
+        try:
+            return proc.cwd()
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            return None
+    
+    def _estimate_process_activity(self, process_info: Dict) -> str:
+        """Estimate what the Claude/OpenCode process is doing"""
+        cmdline = process_info['cmdline'].lower()
+        
+        if 'run' in cmdline:
+            return 'executing_task'
+        elif 'test' in cmdline:
+            return 'running_tests'
+        elif 'build' in cmdline:
+            return 'building'
+        elif 'analyze' in cmdline:
+            return 'analyzing_code'
+        elif 'chat' in cmdline or 'interactive' in cmdline:
+            return 'interactive_session'
+        elif process_info['is_claude_desktop']:
+            return 'desktop_app'
+        else:
+            return 'unknown_activity'
+    
+    def update_system_resources(self):
+        """Update system resource information"""
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)  # Shorter interval for responsiveness
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+            
+            # Count active Claude processes
+            active_processes = len(self.claude_processes)
+            
+            self.system_resources = {
+                'cpu_usage': cpu_percent,
+                'memory_usage': memory.percent,
+                'memory_used': memory.used,
+                'memory_total': memory.total,
+                'disk_usage': disk.percent,
+                'disk_used': disk.used,
+                'disk_total': disk.total,
+                'active_processes': active_processes,
+                'claude_processes': len([p for p in self.claude_processes.values() 
+                                       if p['status'] in ['running', 'sleeping']]),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error updating system resources: {e}")
+    
     def load_tasks(self):
         """Load tasks from tasks.json file"""
         try:
@@ -251,191 +354,9 @@ class DashboardServer:
                 pass
                 
         return 'pending'
-            
-    def detect_claude_processes(self) -> Dict[str, Dict]:
-        """Enhanced Claude/OpenCode process detection with detailed information"""
-        claude_processes = {}
-        
-        # Multiple patterns to identify Claude/OpenCode processes
-        claude_patterns = [
-            r'opencode.*run',
-            r'claude.*desktop',
-            r'claude.*cli', 
-            r'anthropic.*claude',
-            r'python.*opencode',
-            r'node.*opencode',
-            r'opencode-agent'
-        ]
-        
-        try:
-            for proc in psutil.process_iter(['pid', 'cmdline', 'create_time', 
-                                           'memory_info', 'cpu_percent', 'status', 'name']):
-                try:
-                    if not proc.info['cmdline']:
-                        continue
-                        
-                    cmdline = ' '.join(proc.info['cmdline']).lower()
-                    process_name = proc.info.get('name', '').lower()
-                    
-                    # Check if this matches any Claude/OpenCode pattern
-                    is_claude_process = False
-                    process_type = 'unknown'
-                    
-                    for pattern in claude_patterns:
-                        if re.search(pattern, cmdline) or re.search(pattern, process_name):
-                            is_claude_process = True
-                            if 'opencode' in pattern:
-                                process_type = 'opencode'
-                            elif 'claude' in pattern:
-                                process_type = 'claude'
-                            elif 'anthropic' in pattern:
-                                process_type = 'anthropic_claude'
-                            break
-                    
-                    if is_claude_process:
-                        # Extract additional information
-                        task_id = self._extract_task_id_from_cmdline(cmdline)
-                        working_dir = self._get_process_working_dir(proc)
-                        
-                        process_info = {
-                            'pid': proc.info['pid'],
-                            'type': process_type,
-                            'status': proc.info.get('status', 'unknown'),
-                            'cmdline': ' '.join(proc.info['cmdline']),
-                            'name': proc.info.get('name', ''),
-                            'start_time': datetime.fromtimestamp(proc.info['create_time']).isoformat(),
-                            'memory_usage': proc.info['memory_info'].rss if proc.info['memory_info'] else 0,
-                            'memory_percent': proc.memory_percent() if hasattr(proc, 'memory_percent') else 0,
-                            'cpu_percent': proc.info.get('cpu_percent', 0),
-                            'task_id': task_id,
-                            'working_dir': working_dir,
-                            'is_opencode': 'opencode' in cmdline,
-                            'is_claude_desktop': 'claude' in process_name and 'desktop' in cmdline,
-                            'discovered_at': datetime.now().isoformat()
-                        }
-                        
-                        # Estimate what this process is doing
-                        process_info['activity'] = self._estimate_process_activity(process_info)
-                        
-                        # Use task_id if available, otherwise use PID
-                        key = task_id if task_id else f"pid_{proc.info['pid']}"
-                        claude_processes[key] = process_info
-                        
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    continue
-                except Exception as e:
-                    logger.debug(f"Error processing process info: {e}")
-                    continue
-                    
-        except Exception as e:
-            logger.error(f"Error detecting Claude processes: {e}")
-            
-        return claude_processes
     
-    def _extract_task_id_from_cmdline(self, cmdline: str) -> Optional[str]:
-        """Extract task ID from command line if present"""
-        # Look for task ID patterns
-        patterns = [
-            r'task[_-]([a-zA-Z0-9_-]+)',
-            r'--task[=\s]+([a-zA-Z0-9_-]+)',
-            r'id[=:]([a-zA-Z0-9_-]+)'
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, cmdline, re.IGNORECASE)
-            if match:
-                return match.group(1)
-                
-        return None
-    
-    def _get_process_working_dir(self, proc) -> Optional[str]:
-        """Get working directory of a process"""
-        try:
-            return proc.cwd()
-        except (psutil.AccessDenied, psutil.NoSuchProcess):
-            return None
-    
-    def _estimate_process_activity(self, process_info: Dict) -> str:
-        """Estimate what the Claude/OpenCode process is doing"""
-        cmdline = process_info['cmdline'].lower()
-        
-        if 'run' in cmdline:
-            return 'executing_task'
-        elif 'test' in cmdline:
-            return 'running_tests'
-        elif 'build' in cmdline:
-            return 'building'
-        elif 'analyze' in cmdline:
-            return 'analyzing_code'
-        elif 'chat' in cmdline or 'interactive' in cmdline:
-            return 'interactive_session'
-        elif process_info['is_claude_desktop']:
-            return 'desktop_app'
-        else:
-            return 'unknown_activity'
-        """Get runtime status of a task by checking processes and logs"""
-        # Check if there's a running process for this task
-        try:
-            result = subprocess.run(
-                ['pgrep', '-f', f'opencode.*{task_id}'],
-                capture_output=True, text=True
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                return 'running'
-        except Exception:
-            pass
-            
-        # Check log file for completion status
-        log_file = self.logs_dir / f'{task_id}.log'
-        if log_file.exists():
-            try:
-                with open(log_file, 'r') as f:
-                    content = f.read()
-                    if 'completed successfully' in content.lower():
-                        return 'completed'
-                    elif any(word in content.lower() for word in ['error', 'failed', 'exception']):
-                        return 'error'
-                    elif content.strip():  # Has content but not completed
-                        return 'running'
-            except Exception:
-                pass
-                
-        return 'pending'
-        
-    def update_system_resources(self):
-        """Update system resource information"""
-        try:
-            cpu_percent = psutil.cpu_percent(interval=1)
-            memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
-            
-            # Count active OpenCode processes
-            active_processes = 0
-            for proc in psutil.process_iter(['pid', 'cmdline']):
-                try:
-                    cmdline = ' '.join(proc.info['cmdline'] or [])
-                    if 'opencode run' in cmdline.lower():
-                        active_processes += 1
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            
-            self.system_resources = {
-                'cpu_usage': cpu_percent,
-                'memory_usage': memory.percent,
-                'memory_used': memory.used,
-                'memory_total': memory.total,
-                'disk_usage': disk.percent,
-                'disk_used': disk.used,
-                'disk_total': disk.total,
-                'active_processes': active_processes,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"Error updating system resources: {e}")
-            
-    def update_agents_from_processes(self):
-        """Update agent information from running processes and logs using enhanced Claude detection"""
+    def update_agents_from_processes(self) -> bool:
+        """Update agent information using enhanced Claude process detection"""
         # Update Claude processes first
         self.claude_processes = self.detect_claude_processes()
         
@@ -473,12 +394,11 @@ class DashboardServer:
                 'process_type': proc_info['type']
             }
         
-        # Check for completed tasks in logs (same as before)
+        # Check for completed tasks in logs
         if self.logs_dir.exists():
             for log_file in self.logs_dir.glob('*.log'):
                 task_id = log_file.stem
                 if task_id not in current_agents:
-                    # Check if this task was completed
                     try:
                         with open(log_file, 'r') as f:
                             content = f.read()
@@ -501,32 +421,16 @@ class DashboardServer:
                     except Exception as e:
                         logger.error(f"Error reading log file {log_file}: {e}")
         
-        # Update agents and broadcast changes
-        changed = False
+        # Update agents
+        changed = len(current_agents) != len(self.agents)
         for agent_id, agent_data in current_agents.items():
             if agent_id not in self.agents or self.agents[agent_id] != agent_data:
-                self.agents[agent_id] = agent_data
                 changed = True
-                asyncio.create_task(self.broadcast({
-                    'type': 'agent_update',
-                    'agent': agent_data
-                }))
+                break
         
-        # Remove agents that are no longer active
-        for agent_id in list(self.agents.keys()):
-            if agent_id not in current_agents:
-                del self.agents[agent_id]
-                changed = True
-                
-        # Broadcast Claude process updates
-        if self.claude_processes:
-            asyncio.create_task(self.broadcast({
-                'type': 'claude_processes_update',
-                'processes': list(self.claude_processes.values())
-            }))
-                
+        self.agents = current_agents
         return changed
-        
+    
     def estimate_progress(self, agent_id: str) -> int:
         """Estimate task progress based on log content and runtime"""
         log_file = self.logs_dir / f'{agent_id}.log'
@@ -551,7 +455,7 @@ class DashboardServer:
                     
         except Exception:
             return 0
-            
+    
     def extract_error_message(self, log_content: str) -> str:
         """Extract a meaningful error message from log content"""
         lines = log_content.splitlines()
@@ -559,9 +463,9 @@ class DashboardServer:
             if any(word in line.lower() for word in ['error', 'failed', 'exception']):
                 return line.strip()[:100]
         return "Unknown error occurred"
-        
+    
     def broadcast_log_entry(self, file_path: str, line: str):
-        """Broadcast a new log entry to all clients"""
+        """Broadcast a new log entry (stub for non-WebSocket mode)"""
         log_entry = {
             'time': datetime.now().isoformat(),
             'level': self.extract_log_level(line),
@@ -573,13 +477,10 @@ class DashboardServer:
         # Keep only last 1000 logs in memory
         if len(self.logs) > 1000:
             self.logs = self.logs[-1000:]
-            
-        # Broadcast to clients
-        asyncio.create_task(self.broadcast({
-            'type': 'log_entry',
-            'log': log_entry
-        }))
         
+        # In non-WebSocket mode, just log it
+        logger.debug(f"Log entry: {log_entry}")
+    
     def extract_log_level(self, line: str) -> str:
         """Extract log level from log line"""
         line_lower = line.lower()
@@ -593,175 +494,39 @@ class DashboardServer:
             return 'debug'
         else:
             return 'info'
-            
-    async def handle_client_message(self, websocket, message):
-        """Handle incoming client messages with enhanced functionality"""
-        try:
-            data = json.loads(message)
-            msg_type = data.get('type')
-            
-            if msg_type == 'request_status':
-                await self.send_full_status(websocket)
-            elif msg_type == 'ping':
-                await self.send_to_client(websocket, {'type': 'pong'})
-            elif msg_type == 'request_claude_processes':
-                # Send current Claude processes
-                await self.send_to_client(websocket, {
-                    'type': 'claude_processes',
-                    'processes': list(self.claude_processes.values())
-                })
-            elif msg_type == 'request_agent_details':
-                agent_id = data.get('agent_id')
-                if agent_id and agent_id in self.agents:
-                    agent = self.agents[agent_id]
-                    # Add additional details like recent logs
-                    agent_details = agent.copy()
-                    agent_details['recent_logs'] = self.get_agent_recent_logs(agent_id)
-                    await self.send_to_client(websocket, {
-                        'type': 'agent_details',
-                        'agent': agent_details
-                    })
-            elif msg_type == 'kill_process':
-                # Allow clients to request killing a process (with safety checks)
-                pid = data.get('pid')
-                if pid and self.is_safe_to_kill(pid):
-                    success = self.kill_process_safely(pid)
-                    await self.send_to_client(websocket, {
-                        'type': 'kill_process_response',
-                        'success': success,
-                        'pid': pid
-                    })
-            elif msg_type == 'start_task':
-                # Start a new task if task manager is available
-                if self.task_manager:
-                    task_data = data.get('task_data', {})
-                    task = self.task_manager.add_task(task_data)
-                    await self.send_to_client(websocket, {
-                        'type': 'task_started',
-                        'task': task.to_dict()
-                    })
-                
-        except Exception as e:
-            logger.error(f"Error handling client message: {e}")
-            await self.send_to_client(websocket, {
-                'type': 'error',
-                'message': f"Error processing message: {str(e)}"
-            })
     
-    def get_agent_recent_logs(self, agent_id: str) -> List[Dict]:
-        """Get recent logs for a specific agent"""
-        agent_logs = []
-        for log_entry in reversed(self.logs):
-            if log_entry.get('agent') == agent_id:
-                agent_logs.append(log_entry)
-                if len(agent_logs) >= 20:  # Last 20 logs for this agent
-                    break
-        return list(reversed(agent_logs))
+    def _on_task_status_change(self, task, old_status, new_status):
+        """Handle task status changes from task manager"""
+        logger.info(f"Task {task.id} status changed: {old_status.value} -> {new_status.value}")
     
-    def is_safe_to_kill(self, pid: int) -> bool:
-        """Check if it's safe to kill a process (only Claude/OpenCode processes)"""
-        try:
-            proc = psutil.Process(pid)
-            cmdline = ' '.join(proc.cmdline()).lower()
-            
-            # Only allow killing Claude/OpenCode related processes
-            safe_patterns = ['opencode', 'claude', 'anthropic']
-            return any(pattern in cmdline for pattern in safe_patterns)
-        except:
-            return False
+    def _on_task_progress_update(self, task, old_progress, new_progress):
+        """Handle task progress updates from task manager"""
+        logger.info(f"Task {task.id} progress: {old_progress}% -> {new_progress}%")
     
-    def kill_process_safely(self, pid: int) -> bool:
-        """Safely kill a Claude/OpenCode process"""
-        try:
-            proc = psutil.Process(pid)
-            proc.terminate()
-            
-            # Wait for graceful termination
-            try:
-                proc.wait(timeout=10)
-            except psutil.TimeoutExpired:
-                # Force kill if necessary
-                proc.kill()
-                
-            logger.info(f"Successfully terminated process {pid}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to kill process {pid}: {e}")
-            return False
-            
-    async def client_handler(self, websocket, path):
-        """Handle WebSocket client connections"""
-        await self.register(websocket)
-        try:
-            async for message in websocket:
-                await self.handle_client_message(websocket, message)
-        except websockets.exceptions.ConnectionClosed:
-            pass
-        finally:
-            await self.unregister(websocket)
-            
     def start_file_monitoring(self):
         """Start monitoring log files for changes"""
         if self.logs_dir.exists():
             self.observer.schedule(self.log_handler, str(self.logs_dir), recursive=False)
             self.observer.start()
             logger.info(f"Started monitoring {self.logs_dir}")
-            
+    
     def stop_file_monitoring(self):
         """Stop file monitoring"""
         self.observer.stop()
         self.observer.join()
-        
-    async def periodic_updates(self):
-        """Periodic updates for system resources and agent status with enhanced monitoring"""
-        while True:
-            try:
-                # Update system resources
-                self.update_system_resources()
-                await self.broadcast({
-                    'type': 'resource_update',
-                    'resources': self.system_resources
-                })
-                
-                # Update agents using enhanced Claude process detection
-                agents_changed = self.update_agents_from_processes()
-                
-                # Reload tasks from file
-                self.load_tasks()
-                
-                # If task manager is available, sync with it
-                if self.task_manager:
-                    task_summary = self.task_manager.get_status_summary()
-                    await self.broadcast({
-                        'type': 'task_manager_status',
-                        'summary': task_summary
-                    })
-                
-                # Periodic process scan (less frequent than other updates)
-                now = datetime.now()
-                if now - self.last_process_scan >= self.process_scan_interval:
-                    detailed_processes = self.detect_claude_processes()
-                    await self.broadcast({
-                        'type': 'detailed_process_scan',
-                        'processes': list(detailed_processes.values()),
-                        'scan_time': now.isoformat()
-                    })
-                    self.last_process_scan = now
-                
-                await asyncio.sleep(5)  # Update every 5 seconds
-                
-            except Exception as e:
-                logger.error(f"Error in periodic updates: {e}")
-                await asyncio.sleep(5)
-                
-    async def start_server(self):
-        """Start the WebSocket server with enhanced functionality"""
-        logger.info(f"Starting enhanced dashboard server on port {self.port}")
+    
+    def run_monitoring_loop(self):
+        """Run the monitoring loop without WebSocket server"""
+        self.running = True
+        logger.info("Starting enhanced monitoring loop (no WebSocket)")
         
         # Initial data load
         self.load_tasks()
         self.update_system_resources()
         self.update_agents_from_processes()
+        
+        # Start file monitoring
+        self.start_file_monitoring()
         
         # Start task manager if available
         if self.task_manager:
@@ -771,31 +536,60 @@ class DashboardServer:
             except Exception as e:
                 logger.warning(f"Could not start task manager: {e}")
         
-        # Start file monitoring
-        self.start_file_monitoring()
+        try:
+            while self.running:
+                # Update system resources
+                self.update_system_resources()
+                
+                # Update agents using enhanced Claude process detection
+                agents_changed = self.update_agents_from_processes()
+                
+                if agents_changed:
+                    logger.info(f"Detected {len(self.agents)} agents, {len(self.claude_processes)} Claude processes")
+                
+                # Reload tasks from file
+                self.load_tasks()
+                
+                # Print status summary periodically
+                now = datetime.now()
+                if now - self.last_process_scan >= self.process_scan_interval:
+                    self.print_status_summary()
+                    self.last_process_scan = now
+                
+                time.sleep(5)  # Update every 5 seconds
+                
+        except KeyboardInterrupt:
+            logger.info("Monitoring loop interrupted")
+        finally:
+            self.shutdown()
+    
+    def print_status_summary(self):
+        """Print a status summary to console"""
+        print(f"\n=== Enhanced OpenCode Dashboard Status ===")
+        print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Project: {self.project_dir}")
+        print(f"Active Claude Processes: {len(self.claude_processes)}")
+        print(f"Active Agents: {len(self.agents)}")
+        print(f"Tasks: {len(self.tasks)}")
+        print(f"CPU: {self.system_resources.get('cpu_usage', 0):.1f}%")
+        print(f"Memory: {self.system_resources.get('memory_usage', 0):.1f}%")
         
-        # Start periodic updates
-        asyncio.create_task(self.periodic_updates())
+        if self.claude_processes:
+            print(f"\nClaude Processes:")
+            for proc_id, proc in self.claude_processes.items():
+                print(f"  {proc_id}: {proc['type']} - {proc['activity']} (PID: {proc['pid']})")
         
-        # Start WebSocket server
-        start_server = websockets.serve(
-            self.client_handler,
-            "localhost",
-            self.port,
-            ping_interval=20,
-            ping_timeout=10
-        )
+        if self.agents:
+            print(f"\nActive Agents:")
+            for agent_id, agent in self.agents.items():
+                print(f"  {agent_id}: {agent['status']} - {agent['task']} ({agent['progress']}%)")
         
-        logger.info(f"Enhanced dashboard server started at ws://localhost:{self.port}/ws")
-        logger.info(f"Monitoring project: {self.project_dir}")
-        logger.info(f"Claude process detection: Enhanced")
-        logger.info(f"Task manager integration: {'Enabled' if self.task_manager else 'Disabled'}")
-        
-        await start_server
-        
+        print("=" * 50)
+    
     def shutdown(self):
         """Shutdown the server with cleanup"""
         logger.info("Shutting down enhanced dashboard server...")
+        self.running = False
         
         # Stop task manager
         if self.task_manager:
@@ -810,20 +604,22 @@ class DashboardServer:
         
         logger.info("Dashboard server shutdown complete")
 
+
 def main():
-    """Main entry point"""
+    """Main entry point for enhanced dashboard server"""
     import argparse
-    import signal
     
-    parser = argparse.ArgumentParser(description='OpenCode Agent Dashboard Server')
+    parser = argparse.ArgumentParser(description='Enhanced OpenCode Agent Dashboard Server')
     parser.add_argument('--port', '-p', type=int, default=8080,
                        help='WebSocket server port (default: 8080)')
     parser.add_argument('--project', type=str, default='.',
                        help='Project directory path')
+    parser.add_argument('--monitor-only', action='store_true',
+                       help='Run in monitoring mode only (no WebSocket server)')
     
     args = parser.parse_args()
     
-    server = DashboardServer(args.project, args.port)
+    server = EnhancedDashboardServer(args.project, args.port)
     
     # Handle shutdown gracefully
     def signal_handler(signum, frame):
@@ -834,11 +630,17 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Start the server
+    # Start the appropriate mode
     try:
-        asyncio.run(server.start_server())
+        if args.monitor_only or not WEBSOCKETS_AVAILABLE:
+            server.run_monitoring_loop()
+        else:
+            # WebSocket mode would go here when websockets is available
+            logger.error("WebSocket mode not yet implemented in this version")
+            server.run_monitoring_loop()
     except KeyboardInterrupt:
         server.shutdown()
+
 
 if __name__ == '__main__':
     main()

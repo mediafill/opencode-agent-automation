@@ -3,6 +3,7 @@
 // Global variables
 let websocket = null;
 let reconnectInterval = null;
+let heartbeatInterval = null;
 let agents = [];
 let tasks = [];
 let logs = [];
@@ -11,23 +12,83 @@ let currentTheme = 'light';
 let autoScrollLogs = true;
 let charts = {};
 
-// WebSocket connection with enhanced error handling
+// WebSocket connection management
+let connectionState = 'disconnected'; // disconnected, connecting, connected, error
+let connectionAttempts = 0;
+let maxReconnectAttempts = 10;
+let baseReconnectDelay = 1000; // 1 second
+let maxReconnectDelay = 30000; // 30 seconds
+let heartbeatInterval_ms = 30000; // 30 seconds
+let connectionMetrics = {
+    connectTime: null,
+    lastHeartbeat: null,
+    messagesSent: 0,
+    messagesReceived: 0,
+    reconnectCount: 0,
+    totalDowntime: 0
+};
+
+// Enhanced WebSocket connection with validation and health monitoring
 function initializeWebSocket() {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    if (connectionState === 'connecting') return; // Prevent multiple connection attempts
+    
+    connectionState = 'connecting';
+    updateConnectionStatus('connecting', 'Connecting...');
+    
+    const wsProtocol = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//localhost:8080/ws`;
 
     try {
-        websocket = new WebSocket(wsUrl);
+        if (typeof WebSocket !== 'undefined') {
+            websocket = new WebSocket(wsUrl);
+        } else {
+            throw new Error('WebSocket not available in this environment');
+        }
+        
+        // Set connection timeout
+        const connectionTimeout = setTimeout(() => {
+            if (connectionState === 'connecting') {
+                websocket.close();
+                handleConnectionFailure('Connection timeout');
+            }
+        }, 10000); // 10 second timeout
 
         websocket.onopen = function() {
+            clearTimeout(connectionTimeout);
+            connectionState = 'connected';
+            connectionAttempts = 0;
+            connectionMetrics.connectTime = new Date();
+            connectionMetrics.reconnectCount = connectionAttempts > 0 ? connectionMetrics.reconnectCount + 1 : 0;
+            
             updateConnectionStatus('connected', 'Connected');
-            console.log('WebSocket connected');
-            websocket.send(JSON.stringify({ type: 'request_status' }));
+            console.log('WebSocket connected successfully');
+            
+            // Start heartbeat mechanism
+            startHeartbeat();
+            
+            // Request initial data when connected
+            sendMessage({ type: 'request_status' });
+            
+            addLogEntry({
+                time: new Date(),
+                level: 'info',
+                message: 'WebSocket connection established',
+                agent: 'dashboard'
+            });
         };
 
         websocket.onmessage = function(event) {
+            connectionMetrics.messagesReceived++;
+            connectionMetrics.lastHeartbeat = new Date();
+            
             try {
                 const data = JSON.parse(event.data);
+                
+                // Handle heartbeat response
+                if (data.type === 'pong') {
+                    return; // Just update metrics, no further processing needed
+                }
+                
                 handleWebSocketMessage(data);
             } catch (error) {
                 console.error('Error parsing WebSocket message:', error);
@@ -41,60 +102,236 @@ function initializeWebSocket() {
         };
 
         websocket.onclose = function(event) {
-            updateConnectionStatus('disconnected', 'Disconnected');
-            console.log('WebSocket disconnected', event);
-
-            if (event.code !== 1000 && !reconnectInterval) {
-                reconnectInterval = setInterval(() => {
-                    updateConnectionStatus('connecting', 'Reconnecting...');
-                    initializeWebSocket();
-                }, 5000);
+            clearTimeout(connectionTimeout);
+            stopHeartbeat();
+            
+            const wasConnected = connectionState === 'connected';
+            connectionState = 'disconnected';
+            
+            console.log('WebSocket disconnected', event.code, event.reason);
+            
+            if (event.code === 1000) {
+                // Normal closure
+                updateConnectionStatus('disconnected', 'Disconnected');
+                addLogEntry({
+                    time: new Date(),
+                    level: 'info',
+                    message: 'WebSocket connection closed normally',
+                    agent: 'dashboard'
+                });
+            } else if (event.code === 1006 || event.code === 1001) {
+                // Abnormal closure or going away - attempt reconnection
+                handleConnectionFailure(`Connection lost (${event.code})`);
+            } else {
+                // Other closure codes
+                handleConnectionFailure(`Connection closed with code ${event.code}: ${event.reason || 'Unknown'}`);
             }
         };
 
         websocket.onerror = function(error) {
+            clearTimeout(connectionTimeout);
             console.error('WebSocket error:', error);
-            updateConnectionStatus('disconnected', 'Connection Error');
-            addLogEntry({
-                time: new Date(),
-                level: 'error',
-                message: 'WebSocket connection error',
-                agent: 'dashboard'
-            });
+            handleConnectionFailure('WebSocket error occurred');
         };
 
     } catch (error) {
         console.error('Failed to create WebSocket connection:', error);
-        updateConnectionStatus('disconnected', 'Failed to Connect');
+        handleConnectionFailure(`Failed to initialize WebSocket: ${error.message}`);
+    }
+}
+
+// Enhanced connection failure handling with exponential backoff
+function handleConnectionFailure(reason) {
+    connectionState = 'error';
+    updateConnectionStatus('disconnected', `Error: ${reason}`);
+    
+    addLogEntry({
+        time: new Date(),
+        level: 'error',
+        message: reason,
+        agent: 'dashboard'
+    });
+    
+    // Stop any existing reconnection attempts
+    if (reconnectInterval) {
+        clearInterval(reconnectInterval);
+        reconnectInterval = null;
+    }
+    
+    // Attempt reconnection with exponential backoff
+    if (connectionAttempts < maxReconnectAttempts) {
+        connectionAttempts++;
+        const delay = Math.min(baseReconnectDelay * Math.pow(2, connectionAttempts - 1), maxReconnectDelay);
+        
+        updateConnectionStatus('connecting', `Reconnecting in ${Math.round(delay/1000)}s... (${connectionAttempts}/${maxReconnectAttempts})`);
+        
+        reconnectInterval = setTimeout(() => {
+            reconnectInterval = null;
+            initializeWebSocket();
+        }, delay);
+    } else {
+        updateConnectionStatus('disconnected', 'Max reconnection attempts reached');
         addLogEntry({
             time: new Date(),
             level: 'error',
-            message: `Failed to initialize WebSocket: ${error.message}`,
+            message: 'Maximum reconnection attempts reached. Please refresh the page.',
             agent: 'dashboard'
         });
+        // Fall back to demo data
         loadDemoData();
     }
 }
 
+// Heartbeat mechanism for connection health monitoring
+function startHeartbeat() {
+    stopHeartbeat(); // Clear any existing heartbeat
+    
+    if (typeof setInterval === 'undefined') return; // Skip in test environments
+    
+    heartbeatInterval = setInterval(() => {
+        if (websocket && websocket.readyState === 1) { // WebSocket.OPEN
+            sendMessage({ type: 'ping', timestamp: new Date().getTime() });
+            
+            // Check if we haven't received a heartbeat response in a while
+            const timeSinceLastHeartbeat = connectionMetrics.lastHeartbeat ? 
+                Date.now() - connectionMetrics.lastHeartbeat.getTime() : Infinity;
+            
+            if (timeSinceLastHeartbeat > heartbeatInterval_ms * 2) {
+                console.warn('Heartbeat timeout detected, forcing reconnection');
+                websocket.close(1006, 'Heartbeat timeout');
+            }
+        } else {
+            stopHeartbeat();
+        }
+    }, heartbeatInterval_ms);
+}
+
+function stopHeartbeat() {
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
+}
+
+// Enhanced message sending with validation
+function sendMessage(message) {
+    if (websocket && websocket.readyState === 1) { // WebSocket.OPEN
+        try {
+            const messageStr = JSON.stringify(message);
+            websocket.send(messageStr);
+            connectionMetrics.messagesSent++;
+            return true;
+        } catch (error) {
+            console.error('Error sending WebSocket message:', error);
+            addLogEntry({
+                time: new Date(),
+                level: 'error',
+                message: `Failed to send message: ${error.message}`,
+                agent: 'dashboard'
+            });
+            return false;
+        }
+    } else {
+        console.warn('Cannot send message: WebSocket not connected');
+        return false;
+    }
+}
+
 function handleWebSocketMessage(data) {
+    // Validate message structure
+    if (!data || typeof data !== 'object') {
+        console.warn('Invalid WebSocket message received:', data);
+        return;
+    }
+    
     switch (data.type) {
         case 'agent_update':
-            updateAgent(data.agent);
+            if (data.agent && data.agent.id) {
+                updateAgent(data.agent);
+                logAgentStatusChange(data.agent);
+            }
             break;
         case 'task_update':
-            updateTask(data.task);
+            if (data.task && data.task.id) {
+                updateTask(data.task);
+            }
             break;
         case 'log_entry':
-            addLogEntry(data.log);
+            if (data.log) {
+                addLogEntry(data.log);
+            }
             break;
         case 'resource_update':
-            updateResourceData(data.resources);
+            if (data.resources) {
+                updateResourceData(data.resources);
+            }
             break;
         case 'full_status':
-            agents = data.agents || [];
-            tasks = data.tasks || [];
+            // Clear existing arrays and populate with new data
+            agents.length = 0;
+            tasks.length = 0;
+            if (Array.isArray(data.agents)) {
+                agents.push(...data.agents);
+            }
+            if (Array.isArray(data.tasks)) {
+                tasks.push(...data.tasks);
+            }
             updateAllDisplays();
+            addLogEntry({
+                time: new Date(),
+                level: 'info',
+                message: `Status update received: ${agents.length} agents, ${tasks.length} tasks`,
+                agent: 'dashboard'
+            });
             break;
+        case 'agent_metrics':
+            if (data.metrics) {
+                updateAgentMetrics(data.metrics);
+            }
+            break;
+        case 'system_alert':
+            if (data.alert) {
+                handleSystemAlert(data.alert);
+            }
+            break;
+        default:
+            console.log('Unknown message type received:', data.type);
+    }
+}
+
+// Log significant agent status changes
+function logAgentStatusChange(agent) {
+    const existingAgent = agents.find(a => a.id === agent.id);
+    if (existingAgent && existingAgent.status !== agent.status) {
+        addLogEntry({
+            time: new Date(),
+            level: agent.status === 'error' ? 'error' : 'info',
+            message: `Agent ${agent.id} status changed from ${existingAgent.status} to ${agent.status}`,
+            agent: agent.id
+        });
+    }
+}
+
+// Handle system alerts
+function handleSystemAlert(alert) {
+    addLogEntry({
+        time: new Date(),
+        level: alert.severity || 'warn',
+        message: alert.message || 'System alert received',
+        agent: 'system'
+    });
+}
+
+// Update agent metrics
+function updateAgentMetrics(metrics) {
+    // Update performance metrics display
+    if (metrics.performance) {
+        updatePerformanceMetrics(metrics.performance);
+    }
+    
+    // Update resource usage
+    if (metrics.resources) {
+        updateResourceData(metrics.resources);
     }
 }
 
@@ -113,7 +350,9 @@ function updateConnectionStatus(status, text) {
 
 // Demo data for fallback
 function loadDemoData() {
-    agents = [
+    // Clear existing arrays and populate with demo data
+    agents.length = 0;
+    agents.push(
         {
             id: 'security_' + Date.now(),
             type: 'security',
@@ -151,22 +390,24 @@ function loadDemoData() {
             error: 'Failed to parse OpenAPI specification',
             priority: 'low'
         }
-    ];
+    );
 
-    tasks = [
+    tasks.length = 0;
+    tasks.push(
         { id: '1', type: 'security', status: 'in_progress', priority: 'high', description: 'Security audit' },
         { id: '2', type: 'testing', status: 'completed', priority: 'medium', description: 'Unit tests' },
         { id: '3', type: 'performance', status: 'pending', priority: 'high', description: 'Performance optimization' },
         { id: '4', type: 'documentation', status: 'blocked', priority: 'low', description: 'Documentation update' }
-    ];
+    );
 
-    logs = [
+    logs.length = 0;
+    logs.push(
         { time: new Date(), level: 'info', message: 'Security agent started', agent: 'security_agent' },
         { time: new Date(Date.now() - 30000), level: 'warn', message: 'Potential SQL injection vulnerability found', agent: 'security_agent' },
         { time: new Date(Date.now() - 60000), level: 'info', message: 'Testing agent completed successfully', agent: 'testing_agent' },
         { time: new Date(Date.now() - 90000), level: 'error', message: 'Documentation agent failed to parse OpenAPI spec', agent: 'docs_agent' },
         { time: new Date(Date.now() - 120000), level: 'info', message: 'Performance agent queued', agent: 'perf_agent' }
-    ];
+    );
 
     updateAllDisplays();
 }
@@ -372,6 +613,12 @@ function updateLogs() {
 
 // Update functions called by WebSocket
 function updateAgent(agentData) {
+    // Handle null or undefined agentData gracefully
+    if (!agentData || !agentData.id) {
+        console.warn('Invalid agent data:', agentData);
+        return;
+    }
+
     const existingIndex = agents.findIndex(a => a.id === agentData.id);
     if (existingIndex >= 0) {
         agents[existingIndex] = { ...agents[existingIndex], ...agentData };
@@ -383,6 +630,12 @@ function updateAgent(agentData) {
 }
 
 function updateTask(taskData) {
+    // Handle null or undefined taskData gracefully
+    if (!taskData || !taskData.id) {
+        console.warn('Invalid task data:', taskData);
+        return;
+    }
+
     const existingIndex = tasks.findIndex(t => t.id === taskData.id);
     if (existingIndex >= 0) {
         tasks[existingIndex] = { ...tasks[existingIndex], ...taskData };
@@ -393,6 +646,12 @@ function updateTask(taskData) {
 }
 
 function addLogEntry(logData) {
+    // Handle null or undefined logData gracefully
+    if (!logData) {
+        console.warn('Invalid log data:', logData);
+        return;
+    }
+
     logs.push(logData);
     if (logs.length > 1000) {
         logs.shift();
@@ -413,18 +672,96 @@ function formatTime(date) {
 
 // Event handlers
 function toggleTheme() {
+    // Sync with current DOM state in case they're out of sync
+    if (document.body.className === 'dark' || document.body.className === 'light') {
+        currentTheme = document.body.className;
+    }
+    
     currentTheme = currentTheme === 'light' ? 'dark' : 'light';
     document.body.className = currentTheme;
-    if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('theme', currentTheme);
+    
+    // Use global localStorage reference for tests
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('theme', currentTheme);
+        } else if (global.localStorage) {
+            global.localStorage.setItem('theme', currentTheme);
+        } else if (localStorage) {
+            localStorage.setItem('theme', currentTheme);
+        }
+    } catch (e) {
+        // localStorage not available or disabled
     }
 }
 
 function refreshData() {
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-        websocket.send(JSON.stringify({ type: 'request_status' }));
+    if (websocket && websocket.readyState === 1) { // WebSocket.OPEN
+        sendMessage({ type: 'request_status' });
+        sendMessage({ type: 'request_metrics' });
+        addLogEntry({
+            time: new Date(),
+            level: 'info',
+            message: 'Manual refresh requested',
+            agent: 'dashboard'
+        });
     } else {
+        console.warn('Cannot refresh: WebSocket not connected');
         loadDemoData();
+    }
+}
+
+// Format duration in seconds to human readable format
+function formatDuration(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds/60)}m ${seconds%60}s`;
+    return `${Math.floor(seconds/3600)}h ${Math.floor((seconds%3600)/60)}m`;
+}
+
+// Connection health check
+function performConnectionHealthCheck() {
+    if (!websocket) return false;
+    
+    switch (websocket.readyState) {
+        case 0: // WebSocket.CONNECTING
+            return 'connecting';
+        case 1: // WebSocket.OPEN
+            // Check if we've received a heartbeat recently
+            const timeSinceHeartbeat = connectionMetrics.lastHeartbeat ? 
+                Date.now() - connectionMetrics.lastHeartbeat.getTime() : Infinity;
+            
+            if (timeSinceHeartbeat > heartbeatInterval_ms * 1.5) {
+                return 'unhealthy';
+            }
+            return 'healthy';
+        case 2: // WebSocket.CLOSING
+            return 'closing';
+        case 3: // WebSocket.CLOSED
+            return 'closed';
+        default:
+            return 'unknown';
+    }
+}
+
+// Performance monitoring
+function updatePerformanceMetrics(performanceData) {
+    if (!performanceData) {
+        performanceData = {
+            connectionUptime: connectionMetrics.connectTime ? 
+                Date.now() - connectionMetrics.connectTime.getTime() : 0,
+            messagesSent: connectionMetrics.messagesSent,
+            messagesReceived: connectionMetrics.messagesReceived,
+            reconnectCount: connectionMetrics.reconnectCount,
+            lastHeartbeat: connectionMetrics.lastHeartbeat
+        };
+    }
+    
+    // Send performance data if connected
+    if (websocket && websocket.readyState === 1) {
+        sendMessage({
+            type: 'performance_metrics',
+            data: performanceData,
+            timestamp: Date.now()
+        });
     }
 }
 
@@ -645,6 +982,194 @@ function closeModal() {
     if (detailModal) detailModal.classList.remove('active');
 }
 
+// Enhanced search with fuzzy matching
+function fuzzyMatch(searchTerm, searchFields) {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    
+    for (const field of searchFields) {
+        const fieldValue = (field || '').toString().toLowerCase();
+        
+        // Exact match
+        if (fieldValue.includes(lowerSearchTerm)) {
+            return true;
+        }
+        
+        // Fuzzy matching with tolerance
+        if (fuzzyMatchScore(lowerSearchTerm, fieldValue) > 0.6) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Simple fuzzy matching algorithm
+function fuzzyMatchScore(search, target) {
+    if (search === target) return 1.0;
+    if (search.length === 0) return 1.0;
+    if (target.length === 0) return 0.0;
+
+    let score = 0;
+    let searchIndex = 0;
+    
+    for (let i = 0; i < target.length && searchIndex < search.length; i++) {
+        if (target[i] === search[searchIndex]) {
+            score++;
+            searchIndex++;
+        }
+    }
+    
+    return score / search.length;
+}
+
+// Date range checking
+function checkDateRange(agentDate, fromDate, toDate) {
+    if (!fromDate && !toDate) return true;
+    if (!agentDate) return !fromDate && !toDate;
+    
+    const agentDateObj = new Date(agentDate);
+    const fromDateObj = fromDate ? new Date(fromDate) : null;
+    const toDateObj = toDate ? new Date(toDate) : null;
+    
+    if (fromDateObj && agentDateObj < fromDateObj) return false;
+    if (toDateObj && agentDateObj > new Date(toDateObj.getTime() + 86400000)) return false; // Add one day for inclusive range
+    
+    return true;
+}
+
+// Sorting functionality
+function sortAgents(agents, sortType) {
+    const sortedAgents = [...agents];
+    
+    switch (sortType) {
+        case 'oldest':
+            return sortedAgents.sort((a, b) => new Date(a.startTime || 0) - new Date(b.startTime || 0));
+        case 'priority-high':
+            return sortedAgents.sort((a, b) => {
+                const priorityOrder = { high: 3, medium: 2, low: 1 };
+                return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+            });
+        case 'priority-low':
+            return sortedAgents.sort((a, b) => {
+                const priorityOrder = { high: 3, medium: 2, low: 1 };
+                return (priorityOrder[a.priority] || 0) - (priorityOrder[b.priority] || 0);
+            });
+        case 'status':
+            return sortedAgents.sort((a, b) => {
+                const statusOrder = { running: 4, pending: 3, error: 2, blocked: 1, completed: 0 };
+                return (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
+            });
+        case 'progress':
+            return sortedAgents.sort((a, b) => (b.progress || 0) - (a.progress || 0));
+        case 'newest':
+        default:
+            return sortedAgents.sort((a, b) => new Date(b.startTime || 0) - new Date(a.startTime || 0));
+    }
+}
+
+// Update filter summary
+function updateFilterSummary(filteredCount, totalCount) {
+    const summaryElement = document.getElementById('filterSummary');
+    const filterCountElement = document.getElementById('filterCount');
+    const totalCountElement = document.getElementById('totalCount');
+    
+    if (filterCountElement) filterCountElement.textContent = filteredCount;
+    if (totalCountElement) totalCountElement.textContent = totalCount;
+    
+    // Highlight when filters are active
+    if (summaryElement) {
+        summaryElement.style.opacity = filteredCount < totalCount ? '1' : '0.8';
+    }
+}
+
+// Clear all filters
+function clearAllFilters() {
+    const elements = [
+        'statusFilter', 'typeFilter', 'priorityFilter', 'searchFilter', 
+        'dateFromFilter', 'dateToFilter'
+    ];
+    
+    elements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+    
+    const sortElement = document.getElementById('sortFilter');
+    if (sortElement) sortElement.value = 'newest';
+    
+    filterAgents();
+}
+
+// Export filtered agents to CSV
+function exportFilteredAgents() {
+    const statusFilter = document.getElementById('statusFilter')?.value || '';
+    const typeFilter = document.getElementById('typeFilter')?.value || '';
+    const priorityFilter = document.getElementById('priorityFilter')?.value || '';
+    const searchFilter = document.getElementById('searchFilter')?.value || '';
+    
+    let filteredAgents = agents.filter(agent => {
+        const matchesStatus = !statusFilter || agent.status === statusFilter;
+        const matchesType = !typeFilter || agent.type === typeFilter;
+        const matchesPriority = !priorityFilter || agent.priority === priorityFilter;
+        const matchesSearch = !searchFilter || fuzzyMatch(searchFilter, [
+            agent.id, agent.task, agent.error || '', agent.type, agent.priority, agent.status
+        ]);
+        return matchesStatus && matchesType && matchesPriority && matchesSearch;
+    });
+    
+    const csvData = [
+        ['ID', 'Type', 'Status', 'Priority', 'Progress', 'Task', 'Start Time', 'Error'],
+        ...filteredAgents.map(agent => [
+            agent.id,
+            agent.type,
+            agent.status,
+            agent.priority,
+            agent.progress + '%',
+            agent.task,
+            agent.startTime ? formatTime(agent.startTime) : '',
+            agent.error || ''
+        ])
+    ].map(row => row.join(',')).join('\n');
+    
+    if (typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
+        const blob = new Blob([csvData], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `filtered-agents-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    return csvData;
+}
+
+// Reset function for test isolation
+function resetGlobalState() {
+    agents.length = 0;
+    tasks.length = 0;
+    logs.length = 0;
+    resourceData.length = 0;
+    currentTheme = 'light';
+    autoScrollLogs = true;
+    Object.keys(charts).forEach(key => delete charts[key]);
+    websocket = null;
+    reconnectInterval = null;
+    heartbeatInterval = null;
+    connectionState = 'disconnected';
+    connectionAttempts = 0;
+    connectionMetrics = {
+        connectTime: null,
+        lastHeartbeat: null,
+        messagesSent: 0,
+        messagesReceived: 0,
+        reconnectCount: 0,
+        totalDowntime: 0
+    };
+}
+
 // Export functions for testing
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -672,6 +1197,14 @@ if (typeof module !== 'undefined' && module.exports) {
         filterAgents,
         showAgentDetails,
         closeModal,
+        fuzzyMatch,
+        fuzzyMatchScore,
+        checkDateRange,
+        sortAgents,
+        updateFilterSummary,
+        clearAllFilters,
+        exportFilteredAgents,
+        resetGlobalState,
         agents,
         tasks,
         logs,

@@ -312,9 +312,28 @@
 
         .filters {
             display: flex;
+            flex-direction: column;
             gap: 12px;
             margin-bottom: 16px;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 12px;
             flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-summary {
+            font-size: 14px;
+            opacity: 0.8;
+            padding: 8px 0;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .filter-summary span {
+            font-weight: 600;
+            color: var(--primary-color);
         }
 
         .filter-input, .filter-select {
@@ -324,6 +343,11 @@
             background: rgba(255,255,255,0.1);
             color: inherit;
             font-size: 14px;
+            min-width: 120px;
+        }
+
+        .filter-input[type="date"] {
+            min-width: 140px;
         }
 
         .filter-input::placeholder {
@@ -495,121 +519,145 @@
             100% { transform: rotate(360deg); }
         }
 
-        .notification {
+        .error-message {
+            background: rgba(244,67,54,0.1);
+            color: var(--error-color);
+            padding: 12px;
+            border-radius: 6px;
+            margin: 12px 0;
+            border-left: 4px solid var(--error-color);
+        }
+
+        .success-message {
+            background: rgba(76,175,80,0.1);
+            color: var(--success-color);
+            padding: 12px;
+            border-radius: 6px;
+            margin: 12px 0;
+            border-left: 4px solid var(--success-color);
+        }
+
+        /* Offline indicator styles */
+        .offline-indicator {
+            background: rgba(255, 193, 7, 0.2);
+            color: var(--warning-color);
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin: 12px 0;
+            border-left: 4px solid var(--warning-color);
+            font-weight: 600;
+            text-align: center;
+            animation: pulse 2s infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        /* Network status indicators */
+        .network-status {
+            display: inline-block;
+            margin-left: 10px;
+            font-size: 12px;
+        }
+
+        .network-status.online {
+            color: var(--success-color);
+        }
+
+        .network-status.offline {
+            color: var(--error-color);
+        }
+
+        /* Status notifications */
+        .status-notification {
             position: fixed;
             top: 20px;
             right: 20px;
             padding: 12px 20px;
-            border-radius: 6px;
-            color: white;
-            font-weight: 600;
-            z-index: 1001;
-            animation: slideIn 0.3s ease-out;
-            max-width: 400px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-
-        .notification.success { background: var(--success-color); }
-        .notification.error { background: var(--error-color); }
-        .notification.warning { background: var(--warning-color); }
-        .notification.info { background: var(--info-color); }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .connection-details {
-            font-size: 11px;
-            opacity: 0.8;
-            margin-top: 4px;
-        }
-
-        .metrics-display {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            font-size: 11px;
-        }
-
-        .metric-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: 50px;
-        }
-
-        .metric-label {
-            font-size: 9px;
-            opacity: 0.7;
-            margin-bottom: 2px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .metric-value {
-            font-weight: bold;
-            font-size: 11px;
-        }
-
-        #connectionMetrics {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 8px 12px;
             border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.3s ease;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1001;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            max-width: 400px;
+            font-size: 14px;
         }
 
-        #connectionMetrics:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateY(-1px);
+        .status-notification.success {
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            border-left: 4px solid #4CAF50;
         }
 
-        .performance-chart-container {
-            margin-top: 20px;
-            height: 200px;
+        .status-notification.error {
+            background: rgba(244, 67, 54, 0.9);
+            color: white;
+            border-left: 4px solid #f44336;
+        }
+
+        .status-notification.warning {
+            background: rgba(255, 193, 7, 0.9);
+            color: #333;
+            border-left: 4px solid #FFC107;
+        }
+
+        .status-notification.info {
+            background: rgba(33, 150, 243, 0.9);
+            color: white;
+            border-left: 4px solid #2196F3;
+        }
+
+        /* Enhanced connection status */
+        .connection-dot {
             position: relative;
         }
 
-        .performance-metrics {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
+        .connection-dot.connected {
+            animation: pulse-success 2s infinite;
         }
 
-        .performance-metric {
-            background: var(--light-card);
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+        .connection-dot.connecting {
+            animation: pulse-warning 1s infinite;
         }
 
-        .dark .performance-metric {
-            background: var(--dark-card);
-            border-color: rgba(255, 255, 255, 0.1);
+        .connection-dot.error, .connection-dot.disconnected {
+            animation: pulse-error 1s infinite;
         }
 
-        .performance-metric:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        .connection-dot.offline {
+            animation: pulse-offline 2s infinite;
         }
 
-        .performance-metric-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--primary-color);
-            margin-bottom: 4px;
+        @keyframes pulse-success {
+            0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(76, 175, 80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
         }
 
-        .performance-metric-label {
-            font-size: 12px;
-            opacity: 0.7;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        @keyframes pulse-warning {
+            0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(255, 193, 7, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+        }
+
+        @keyframes pulse-error {
+            0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(244, 67, 54, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+        }
+
+        @keyframes pulse-offline {
+            0% { box-shadow: 0 0 0 0 rgba(156, 39, 176, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(156, 39, 176, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(156, 39, 176, 0); }
         }
     </style>
 </head>
@@ -623,21 +671,8 @@
                     <div class="connection-dot disconnected" id="connectionStatus"></div>
                     <span id="connectionText">Disconnected</span>
                 </div>
-                <div class="status-indicator" id="connectionMetrics">
-                    <div class="metrics-display">
-                        <div class="metric-item">
-                            <span class="metric-label">Uptime:</span>
-                            <span id="uptimeText">00:00</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Messages:</span>
-                            <span id="messageCountText">↑0 ↓0</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Reconnects:</span>
-                            <span id="reconnectCountText">0</span>
-                        </div>
-                    </div>
+                <div class="status-indicator" id="connectionMetrics" style="display: none;">
+                    <span id="metricsText">Metrics</span>
                 </div>
                 <button class="theme-toggle" onclick="toggleTheme()">🌓 Toggle Theme</button>
                 <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
@@ -692,34 +727,6 @@
                     <canvas id="taskDistributionChart"></canvas>
                 </div>
             </div>
-
-            <!-- WebSocket Performance Metrics -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">🔌 WebSocket Performance</h2>
-                </div>
-                <div class="performance-metrics" id="performanceMetrics">
-                    <div class="performance-metric">
-                        <div class="performance-metric-value" id="connectionUptimeMetric">0s</div>
-                        <div class="performance-metric-label">Connection Uptime</div>
-                    </div>
-                    <div class="performance-metric">
-                        <div class="performance-metric-value" id="messageThroughputMetric">0/s</div>
-                        <div class="performance-metric-label">Messages/sec</div>
-                    </div>
-                    <div class="performance-metric">
-                        <div class="performance-metric-value" id="latencyMetric">0ms</div>
-                        <div class="performance-metric-label">Avg Latency</div>
-                    </div>
-                    <div class="performance-metric">
-                        <div class="performance-metric-value" id="reliabilityMetric">100%</div>
-                        <div class="performance-metric-label">Reliability</div>
-                    </div>
-                </div>
-                <div class="performance-chart-container">
-                    <canvas id="performanceChart"></canvas>
-                </div>
-            </div>
         </div>
 
         <!-- Active Agents Grid -->
@@ -727,23 +734,48 @@
             <div class="card-header">
                 <h2 class="card-title">🤖 Active Agents</h2>
                 <div class="filters">
-                    <select class="filter-select" id="statusFilter" onchange="filterAgents()">
-                        <option value="">All Status</option>
-                        <option value="running">Running</option>
-                        <option value="completed">Completed</option>
-                        <option value="error">Error</option>
-                        <option value="pending">Pending</option>
-                        <option value="blocked">Blocked</option>
-                    </select>
-                    <select class="filter-select" id="typeFilter" onchange="filterAgents()">
-                        <option value="">All Types</option>
-                        <option value="security">Security</option>
-                        <option value="testing">Testing</option>
-                        <option value="performance">Performance</option>
-                        <option value="documentation">Documentation</option>
-                        <option value="refactoring">Refactoring</option>
-                    </select>
-                    <input type="text" class="filter-input" id="searchFilter" placeholder="Search agents..." onkeyup="filterAgents()">
+                    <div class="filter-row">
+                        <select class="filter-select" id="statusFilter" onchange="filterAgents()">
+                            <option value="">All Status</option>
+                            <option value="running">Running</option>
+                            <option value="completed">Completed</option>
+                            <option value="error">Error</option>
+                            <option value="pending">Pending</option>
+                            <option value="blocked">Blocked</option>
+                        </select>
+                        <select class="filter-select" id="typeFilter" onchange="filterAgents()">
+                            <option value="">All Types</option>
+                            <option value="security">Security</option>
+                            <option value="testing">Testing</option>
+                            <option value="performance">Performance</option>
+                            <option value="documentation">Documentation</option>
+                            <option value="refactoring">Refactoring</option>
+                        </select>
+                        <select class="filter-select" id="priorityFilter" onchange="filterAgents()">
+                            <option value="">All Priorities</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                        <select class="filter-select" id="sortFilter" onchange="filterAgents()">
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                            <option value="priority-high">Priority (High→Low)</option>
+                            <option value="priority-low">Priority (Low→High)</option>
+                            <option value="status">Status</option>
+                            <option value="progress">Progress</option>
+                        </select>
+                    </div>
+                    <div class="filter-row">
+                        <input type="text" class="filter-input" id="searchFilter" placeholder="Search by ID, task, or error message..." onkeyup="filterAgents()">
+                        <input type="date" class="filter-input" id="dateFromFilter" onchange="filterAgents()" title="Filter from date">
+                        <input type="date" class="filter-input" id="dateToFilter" onchange="filterAgents()" title="Filter to date">
+                        <button class="action-btn" onclick="clearAllFilters()" title="Clear all filters">Clear</button>
+                        <button class="action-btn" onclick="exportFilteredAgents()" title="Export filtered results">Export</button>
+                    </div>
+                    <div class="filter-summary" id="filterSummary">
+                        Showing <span id="filterCount">0</span> of <span id="totalCount">0</span> agents
+                    </div>
                 </div>
             </div>
             <div id="activeAgents" class="dashboard-grid">
@@ -837,52 +869,30 @@
             lastHeartbeat: null,
             messagesSent: 0,
             messagesReceived: 0,
-            reconnects: 0,
-            totalDowntime: 0,
-            pingStartTime: null,
-            latencyHistory: [],
-            avgLatency: 0
+            reconnectCount: 0,
+            totalDowntime: 0
+        };
+        
+        // Network connectivity detection
+        let networkState = {
+            isOnline: navigator.onLine || true,
+            lastCheck: new Date(),
+            checkInterval: null,
+            pingInterval: 5000, // 5 seconds
+            serverReachable: false
         };
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             initializeCharts();
+            initializeNetworkDetection();
+            addDiagnosticStyles();
+            addDiagnosticButton();
             initializeWebSocket();
             loadDemoData();
             generateActivityHeatmap();
-            
-            // Set up intervals for various monitoring tasks
             setInterval(updateResourceChart, 5000);
-            setInterval(() => {
-                if (connectionState === 'connected') {
-                    refreshData();
-                }
-            }, 10000); // Auto-refresh every 10 seconds
-            
-            // Periodic connection health check
-            setInterval(() => {
-                const health = performConnectionHealthCheck();
-                if (health === 'unhealthy' && connectionState === 'connected') {
-                    console.warn('Connection health check failed, attempting to reconnect');
-                    addLogEntry({
-                        time: new Date(),
-                        level: 'warn',
-                        message: 'Connection health check failed, reconnecting...',
-                        agent: 'dashboard'
-                    });
-                    websocket.close(1006, 'Health check failed');
-                }
-            }, 60000); // Check every minute
-            
-            // Update connection metrics display periodically
-            setInterval(updateConnectionMetricsDisplay, 5000);
-            
-            // Performance monitoring
-            setInterval(() => {
-                if (connectionState === 'connected') {
-                    updatePerformanceMetrics();
-                }
-            }, 30000); // Update performance metrics every 30 seconds
+            setInterval(refreshData, 10000); // Auto-refresh every 10 seconds
         });
 
         // Enhanced WebSocket connection with validation and health monitoring
@@ -911,7 +921,7 @@
                     connectionState = 'connected';
                     connectionAttempts = 0;
                     connectionMetrics.connectTime = new Date();
-                    connectionMetrics.reconnects = connectionAttempts > 0 ? connectionMetrics.reconnects + 1 : 0;
+                    connectionMetrics.reconnectCount = connectionAttempts > 0 ? connectionMetrics.reconnectCount + 1 : 0;
                     
                     updateConnectionStatus('connected', 'Connected');
                     console.log('WebSocket connected successfully');
@@ -937,26 +947,9 @@
                     try {
                         const data = JSON.parse(event.data);
                         
-                        // Handle heartbeat response and calculate latency
+                        // Handle heartbeat response
                         if (data.type === 'pong') {
-                            if (connectionMetrics.pingStartTime) {
-                                const latency = Date.now() - connectionMetrics.pingStartTime;
-                                connectionMetrics.latencyHistory.push(latency);
-                                
-                                // Keep only last 10 latency measurements
-                                if (connectionMetrics.latencyHistory.length > 10) {
-                                    connectionMetrics.latencyHistory.shift();
-                                }
-                                
-                                // Calculate average latency
-                                connectionMetrics.avgLatency = Math.round(
-                                    connectionMetrics.latencyHistory.reduce((sum, lat) => sum + lat, 0) / 
-                                    connectionMetrics.latencyHistory.length
-                                );
-                                
-                                connectionMetrics.pingStartTime = null;
-                            }
-                            return;
+                            return; // Just update metrics, no further processing needed
                         }
                         
                         handleWebSocketMessage(data);
@@ -1044,11 +1037,11 @@
                 addLogEntry({
                     time: new Date(),
                     level: 'error',
-                    message: 'Maximum reconnection attempts reached. Please refresh the page.',
+                    message: 'Maximum reconnection attempts reached. Switching to offline mode.',
                     agent: 'dashboard'
                 });
-                // Fall back to demo data
-                loadDemoData();
+                // Enhanced fallback strategy
+                activateEnhancedFallbackMode();
             }
         }
         
@@ -1058,8 +1051,7 @@
             
             heartbeatInterval = setInterval(() => {
                 if (websocket && websocket.readyState === WebSocket.OPEN) {
-                    connectionMetrics.pingStartTime = Date.now();
-                    sendMessage({ type: 'ping', timestamp: connectionMetrics.pingStartTime });
+                    sendMessage({ type: 'ping', timestamp: new Date().getTime() });
                     
                     // Check if we haven't received a heartbeat response in a while
                     const timeSinceLastHeartbeat = connectionMetrics.lastHeartbeat ? 
@@ -1079,6 +1071,579 @@
             if (heartbeatInterval) {
                 clearInterval(heartbeatInterval);
                 heartbeatInterval = null;
+            }
+        }
+        
+        // Network connectivity detection functions
+        function initializeNetworkDetection() {
+            // Listen for browser online/offline events
+            window.addEventListener('online', handleNetworkOnline);
+            window.addEventListener('offline', handleNetworkOffline);
+            
+            // Start periodic server connectivity check
+            startNetworkMonitoring();
+            
+            // Initial network state check
+            checkNetworkConnectivity();
+        }
+        
+        function handleNetworkOnline() {
+            networkState.isOnline = true;
+            networkState.lastCheck = new Date();
+            
+            addLogEntry({
+                time: new Date(),
+                level: 'info',
+                message: 'Network connectivity restored',
+                agent: 'dashboard'
+            });
+            
+            // Try to reconnect WebSocket if needed
+            if (connectionState === 'disconnected' || connectionState === 'error') {
+                connectionAttempts = 0; // Reset connection attempts
+                initializeWebSocket();
+            }
+        }
+        
+        function handleNetworkOffline() {
+            networkState.isOnline = false;
+            networkState.serverReachable = false;
+            networkState.lastCheck = new Date();
+            
+            addLogEntry({
+                time: new Date(),
+                level: 'warn',
+                message: 'Network connectivity lost - switching to offline mode',
+                agent: 'dashboard'
+            });
+            
+            updateConnectionStatus('offline', 'Offline mode - cached data only');
+            enableOfflineMode();
+        }
+        
+        function startNetworkMonitoring() {
+            if (networkState.checkInterval) {
+                clearInterval(networkState.checkInterval);
+            }
+            
+            networkState.checkInterval = setInterval(checkNetworkConnectivity, networkState.pingInterval);
+        }
+        
+        function stopNetworkMonitoring() {
+            if (networkState.checkInterval) {
+                clearInterval(networkState.checkInterval);
+                networkState.checkInterval = null;
+            }
+        }
+        
+        async function checkNetworkConnectivity() {
+            if (!networkState.isOnline) {
+                return false; // Browser is offline
+            }
+            
+            try {
+                // Try to reach the server with a simple HTTP request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+                
+                const response = await fetch('/health', {
+                    method: 'HEAD',
+                    signal: controller.signal,
+                    cache: 'no-cache'
+                });
+                
+                clearTimeout(timeoutId);
+                
+                const wasReachable = networkState.serverReachable;
+                networkState.serverReachable = response.ok;
+                networkState.lastCheck = new Date();
+                
+                // If server became reachable after being unreachable
+                if (networkState.serverReachable && !wasReachable) {
+                    addLogEntry({
+                        time: new Date(),
+                        level: 'info',
+                        message: 'Server connectivity restored',
+                        agent: 'dashboard'
+                    });
+                    
+                    // Attempt WebSocket reconnection if needed
+                    if (connectionState !== 'connected') {
+                        connectionAttempts = 0;
+                        initializeWebSocket();
+                    }
+                }
+                
+                return networkState.serverReachable;
+            } catch (error) {
+                const wasReachable = networkState.serverReachable;
+                networkState.serverReachable = false;
+                networkState.lastCheck = new Date();
+                
+                if (wasReachable) {
+                    addLogEntry({
+                        time: new Date(),
+                        level: 'warn',
+                        message: `Server unreachable: ${error.message}`,
+                        agent: 'dashboard'
+                    });
+                }
+                
+                return false;
+            }
+        }
+        
+        function enableOfflineMode() {
+            // Switch to cached data or demo data
+            if (!hasValidCachedData()) {
+                loadDemoData();
+            } else {
+                loadCachedData();
+            }
+            
+            // Update UI to show offline state
+            showOfflineNotification();
+        }
+        
+        // Enhanced fallback mode with multiple fallback strategies
+        function activateEnhancedFallbackMode() {
+            addLogEntry({
+                time: new Date(),
+                level: 'info',
+                message: 'Activating enhanced fallback mode...',
+                agent: 'dashboard'
+            });
+            
+            // Strategy 1: Try to load cached data first
+            if (hasValidCachedData() && loadCachedData()) {
+                addLogEntry({
+                    time: new Date(),
+                    level: 'info',
+                    message: 'Using cached data for offline operation',
+                    agent: 'dashboard'
+                });
+                showOfflineNotification();
+                return;
+            }
+            
+            // Strategy 2: Try to load from browser storage (session storage)
+            if (loadFromSessionStorage()) {
+                addLogEntry({
+                    time: new Date(),
+                    level: 'info',
+                    message: 'Using session data for offline operation',
+                    agent: 'dashboard'
+                });
+                showOfflineNotification();
+                return;
+            }
+            
+            // Strategy 3: Generate intelligent demo data based on time of day
+            loadIntelligentDemoData();
+            addLogEntry({
+                time: new Date(),
+                level: 'info',
+                message: 'Using intelligent demo data for offline operation',
+                agent: 'dashboard'
+            });
+            showOfflineNotification();
+            
+            // Enable offline functionality features
+            enableOfflineFeatures();
+        }
+        
+        function loadFromSessionStorage() {
+            if (!sessionStorage) return false;
+            
+            try {
+                const sessionData = JSON.parse(sessionStorage.getItem('dashboardSession') || '{}');
+                if (!sessionData.agents && !sessionData.tasks) return false;
+                
+                agents = Array.isArray(sessionData.agents) ? sessionData.agents : [];
+                tasks = Array.isArray(sessionData.tasks) ? sessionData.tasks : [];
+                logs = Array.isArray(sessionData.logs) ? sessionData.logs : [];
+                
+                updateAllDisplays();
+                return true;
+            } catch (error) {
+                console.warn('Failed to load session data:', error);
+                return false;
+            }
+        }
+        
+        function loadIntelligentDemoData() {
+            const currentHour = new Date().getHours();
+            const isWorkingHours = currentHour >= 9 && currentHour <= 17;
+            const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6;
+            
+            // Generate demo data based on time context
+            const agentCount = isWorkingHours && !isWeekend ? 6 : 3;
+            const taskTypes = ['security', 'testing', 'performance', 'documentation', 'refactoring', 'deployment'];
+            
+            agents = [];
+            tasks = [];
+            
+            for (let i = 0; i < agentCount; i++) {
+                const type = taskTypes[i % taskTypes.length];
+                const status = getRealisticStatus(currentHour, isWorkingHours);
+                
+                agents.push({
+                    id: `${type}_${Date.now() + i}`,
+                    type: type,
+                    status: status,
+                    task: getRealisticTask(type, currentHour),
+                    progress: getRealisticProgress(status),
+                    startTime: new Date(Date.now() - Math.random() * 3600000), // Within last hour
+                    priority: getRealisticPriority(type),
+                    ...(status === 'completed' && { endTime: new Date(Date.now() - Math.random() * 1800000) }),
+                    ...(status === 'error' && { error: getRealisticError(type) })
+                });
+                
+                tasks.push({
+                    id: (i + 1).toString(),
+                    type: type,
+                    status: status === 'running' ? 'in_progress' : status,
+                    priority: getRealisticPriority(type),
+                    description: getRealisticTask(type, currentHour)
+                });
+            }
+            
+            // Generate contextual logs
+            logs = generateContextualLogs(currentHour, isWorkingHours, isWeekend);
+            
+            updateAllDisplays();
+        }
+        
+        function getRealisticStatus(hour, isWorkingHours) {
+            const statuses = ['running', 'completed', 'pending', 'error'];
+            
+            if (!isWorkingHours) {
+                // More completed/pending tasks outside working hours
+                return Math.random() < 0.6 ? 'completed' : 'pending';
+            }
+            
+            // During working hours, more active tasks
+            const weights = [0.4, 0.3, 0.2, 0.1]; // running, completed, pending, error
+            const random = Math.random();
+            let sum = 0;
+            
+            for (let i = 0; i < weights.length; i++) {
+                sum += weights[i];
+                if (random < sum) return statuses[i];
+            }
+            
+            return 'pending';
+        }
+        
+        function getRealisticTask(type, hour) {
+            const tasks = {
+                security: [
+                    'Performing vulnerability scan on authentication module',
+                    'Analyzing code for SQL injection patterns',
+                    'Updating security dependencies',
+                    'Reviewing access control permissions'
+                ],
+                testing: [
+                    'Running unit test suite',
+                    'Executing integration tests',
+                    'Performance testing user flows',
+                    'Validating API endpoints'
+                ],
+                performance: [
+                    'Optimizing database queries',
+                    'Analyzing memory usage patterns',
+                    'Compressing static assets',
+                    'Implementing caching strategies'
+                ],
+                documentation: [
+                    'Updating API documentation',
+                    'Writing deployment guides',
+                    'Creating user manuals',
+                    'Generating code documentation'
+                ],
+                refactoring: [
+                    'Cleaning up legacy code',
+                    'Modernizing component architecture',
+                    'Optimizing data structures',
+                    'Removing unused dependencies'
+                ],
+                deployment: [
+                    'Building production artifacts',
+                    'Running deployment pipeline',
+                    'Updating production environment',
+                    'Verifying deployment status'
+                ]
+            };
+            
+            const typeTasks = tasks[type] || tasks.testing;
+            return typeTasks[Math.floor(Math.random() * typeTasks.length)];
+        }
+        
+        function getRealisticProgress(status) {
+            switch (status) {
+                case 'completed': return 100;
+                case 'error': return Math.floor(Math.random() * 50) + 10;
+                case 'running': return Math.floor(Math.random() * 80) + 10;
+                case 'pending': return 0;
+                default: return 0;
+            }
+        }
+        
+        function getRealisticPriority(type) {
+            const priorities = {
+                security: 'high',
+                deployment: 'high',
+                testing: 'medium',
+                performance: 'medium',
+                refactoring: 'low',
+                documentation: 'low'
+            };
+            return priorities[type] || 'medium';
+        }
+        
+        function getRealisticError(type) {
+            const errors = {
+                security: 'Scan timeout due to network latency',
+                testing: 'Test environment unavailable',
+                performance: 'Memory limit exceeded during analysis',
+                documentation: 'Failed to parse code annotations',
+                refactoring: 'Dependency conflict detected',
+                deployment: 'Build pipeline configuration error'
+            };
+            return errors[type] || 'Unknown error occurred';
+        }
+        
+        function generateContextualLogs(hour, isWorkingHours, isWeekend) {
+            const contextualLogs = [];
+            const baseTime = Date.now();
+            
+            // Generate logs based on time context
+            const logCount = isWorkingHours && !isWeekend ? 8 : 4;
+            
+            for (let i = 0; i < logCount; i++) {
+                const logTime = new Date(baseTime - (i * 15000)); // 15 seconds apart
+                const level = Math.random() < 0.7 ? 'info' : Math.random() < 0.8 ? 'warn' : 'error';
+                
+                contextualLogs.unshift({
+                    time: logTime,
+                    level: level,
+                    message: getContextualLogMessage(level, hour, isWorkingHours),
+                    agent: getRandomAgent()
+                });
+            }
+            
+            return contextualLogs;
+        }
+        
+        function getContextualLogMessage(level, hour, isWorkingHours) {
+            const messages = {
+                info: [
+                    isWorkingHours ? 'Agent started successfully' : 'Scheduled maintenance completed',
+                    'Task queue processed',
+                    'System health check passed',
+                    'Configuration updated'
+                ],
+                warn: [
+                    'High CPU usage detected',
+                    'Memory usage approaching limit',
+                    'Slow database query detected',
+                    'Network latency increased'
+                ],
+                error: [
+                    'Connection timeout occurred',
+                    'Authentication failure',
+                    'Database connection lost',
+                    'Service temporarily unavailable'
+                ]
+            };
+            
+            const levelMessages = messages[level] || messages.info;
+            return levelMessages[Math.floor(Math.random() * levelMessages.length)];
+        }
+        
+        function getRandomAgent() {
+            const agents = ['security_agent', 'testing_agent', 'perf_agent', 'docs_agent', 'deploy_agent'];
+            return agents[Math.floor(Math.random() * agents.length)];
+        }
+        
+        function enableOfflineFeatures() {
+            // Enable features that work offline
+            addOfflineControls();
+            enableDataExport();
+            enableLocalSearch();
+        }
+        
+        function addOfflineControls() {
+            const header = document.querySelector('.header-controls');
+            if (!header || document.getElementById('offlineControls')) return;
+            
+            const offlineControls = document.createElement('div');
+            offlineControls.id = 'offlineControls';
+            offlineControls.innerHTML = `
+                <button class="refresh-btn" onclick="retryConnection()" title="Retry Connection">🔄 Retry</button>
+                <button class="refresh-btn" onclick="clearCache()" title="Clear Cache">🗑️ Clear Cache</button>
+            `;
+            
+            header.appendChild(offlineControls);
+        }
+        
+        function retryConnection() {
+            addLogEntry({
+                time: new Date(),
+                level: 'info',
+                message: 'Manual connection retry initiated',
+                agent: 'dashboard'
+            });
+            
+            connectionAttempts = 0;
+            initializeWebSocket();
+        }
+        
+        function enableDataExport() {
+            // Already exists in the original implementation
+        }
+        
+        function enableLocalSearch() {
+            // Enhance existing search functionality for offline use
+            const searchInputs = document.querySelectorAll('.filter-input');
+            searchInputs.forEach(input => {
+                if (!input.hasAttribute('data-offline-enabled')) {
+                    input.setAttribute('data-offline-enabled', 'true');
+                    input.placeholder += ' (offline mode)';
+                }
+            });
+        }
+        
+        function showOfflineNotification() {
+            // Add offline indicator to the UI
+            const offlineIndicator = document.createElement('div');
+            offlineIndicator.id = 'offlineIndicator';
+            offlineIndicator.className = 'offline-indicator';
+            offlineIndicator.innerHTML = '⚠️ Offline Mode - Data may be outdated';
+            
+            // Remove existing indicator if present
+            const existing = document.getElementById('offlineIndicator');
+            if (existing) {
+                existing.remove();
+            }
+            
+            // Insert at top of main content
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
+                mainContent.insertBefore(offlineIndicator, mainContent.firstChild);
+            }
+        }
+        
+        function hideOfflineNotification() {
+            const indicator = document.getElementById('offlineIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+        
+        // Local storage caching functions
+        function saveDataToCache() {
+            if (!localStorage) return;
+            
+            try {
+                const cacheData = {
+                    agents: agents,
+                    tasks: tasks,
+                    logs: logs.slice(-100), // Keep only last 100 logs
+                    resourceData: resourceData.slice(-50), // Keep only last 50 resource entries
+                    timestamp: new Date().getTime(),
+                    version: '1.0'
+                };
+                
+                localStorage.setItem('dashboardCache', JSON.stringify(cacheData));
+                localStorage.setItem('dashboardCacheTime', cacheData.timestamp.toString());
+            } catch (error) {
+                console.warn('Failed to save data to cache:', error);
+                addLogEntry({
+                    time: new Date(),
+                    level: 'warn',
+                    message: `Cache save failed: ${error.message}`,
+                    agent: 'dashboard'
+                });
+            }
+        }
+        
+        function loadCachedData() {
+            if (!localStorage) return false;
+            
+            try {
+                const cacheData = JSON.parse(localStorage.getItem('dashboardCache'));
+                const cacheTime = parseInt(localStorage.getItem('dashboardCacheTime') || '0');
+                
+                if (!cacheData || !cacheTime) return false;
+                
+                // Check if cache is not too old (max 1 hour)
+                const maxCacheAge = 60 * 60 * 1000; // 1 hour in milliseconds
+                const age = Date.now() - cacheTime;
+                
+                if (age > maxCacheAge) {
+                    console.log('Cache expired, falling back to demo data');
+                    return false;
+                }
+                
+                // Load cached data
+                agents = Array.isArray(cacheData.agents) ? cacheData.agents : [];
+                tasks = Array.isArray(cacheData.tasks) ? cacheData.tasks : [];
+                logs = Array.isArray(cacheData.logs) ? cacheData.logs : [];
+                resourceData = Array.isArray(cacheData.resourceData) ? cacheData.resourceData : [];
+                
+                // Add cache load log entry
+                addLogEntry({
+                    time: new Date(),
+                    level: 'info',
+                    message: `Loaded cached data from ${new Date(cacheTime).toLocaleTimeString()}`,
+                    agent: 'dashboard'
+                });
+                
+                updateAllDisplays();
+                return true;
+            } catch (error) {
+                console.warn('Failed to load cached data:', error);
+                addLogEntry({
+                    time: new Date(),
+                    level: 'warn',
+                    message: `Cache load failed: ${error.message}`,
+                    agent: 'dashboard'
+                });
+                return false;
+            }
+        }
+        
+        function hasValidCachedData() {
+            if (!localStorage) return false;
+            
+            try {
+                const cacheTime = parseInt(localStorage.getItem('dashboardCacheTime') || '0');
+                if (!cacheTime) return false;
+                
+                const maxCacheAge = 60 * 60 * 1000; // 1 hour
+                const age = Date.now() - cacheTime;
+                
+                return age <= maxCacheAge;
+            } catch (error) {
+                return false;
+            }
+        }
+        
+        function clearCache() {
+            if (!localStorage) return;
+            
+            try {
+                localStorage.removeItem('dashboardCache');
+                localStorage.removeItem('dashboardCacheTime');
+                addLogEntry({
+                    time: new Date(),
+                    level: 'info',
+                    message: 'Dashboard cache cleared',
+                    agent: 'dashboard'
+                });
+            } catch (error) {
+                console.warn('Failed to clear cache:', error);
             }
         }
         
@@ -1103,116 +1668,6 @@
             } else {
                 console.warn('Cannot send message: WebSocket not connected');
                 return false;
-            }
-        }
-        
-        // Update connection metrics display
-        function updateConnectionMetricsDisplay() {
-            const metricsEl = document.getElementById('connectionMetrics');
-            const metricsTextEl = document.getElementById('metricsText');
-            
-            if (connectionState === 'connected' && metricsEl && metricsTextEl) {
-                const uptime = connectionMetrics.connectTime ? 
-                    Math.floor((Date.now() - connectionMetrics.connectTime.getTime()) / 1000) : 0;
-                
-                // Calculate throughput (messages per second)
-                const totalMessages = connectionMetrics.messagesSent + connectionMetrics.messagesReceived;
-                const throughput = uptime > 0 ? (totalMessages / uptime).toFixed(2) : '0.00';
-                
-                // Calculate reliability (uptime / total time since first connection)
-                const totalTime = connectionMetrics.connectTime ? 
-                    Math.floor((Date.now() - connectionMetrics.connectTime.getTime()) / 1000) : 0;
-                const reliability = totalTime > 0 ? Math.min(100, ((uptime / totalTime) * 100)).toFixed(1) : '100.0';
-                
-                // Update header metrics
-                metricsTextEl.innerHTML = `
-                    <div class="metric-item">
-                        <span class="metric-label">Uptime:</span>
-                        <span class="metric-value">${formatDuration(uptime)}</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Messages:</span>
-                        <span class="metric-value">↑${connectionMetrics.messagesSent} ↓${connectionMetrics.messagesReceived}</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Reconnects:</span>
-                        <span class="metric-value">${connectionMetrics.reconnects}</span>
-                    </div>
-                `;
-                metricsEl.style.display = 'flex';
-                
-                // Update performance card if it exists
-                updatePerformanceCard(uptime, throughput, reliability, totalMessages);
-            } else if (metricsEl) {
-                metricsEl.style.display = 'none';
-            }
-        }
-        
-        // Update the WebSocket performance card
-        function updatePerformanceCard(uptime, throughput, reliability, totalMessages) {
-            const perfUptimeEl = document.getElementById('perfUptime');
-            const perfThroughputEl = document.getElementById('perfThroughput');
-            const perfLatencyEl = document.getElementById('perfLatency');
-            const perfReliabilityEl = document.getElementById('perfReliability');
-            
-            if (perfUptimeEl) perfUptimeEl.textContent = formatDuration(uptime);
-            if (perfThroughputEl) perfThroughputEl.textContent = `${throughput} msg/s`;
-            if (perfLatencyEl) perfLatencyEl.textContent = `${connectionMetrics.avgLatency || '0'}ms`;
-            if (perfReliabilityEl) perfReliabilityEl.textContent = `${reliability}%`;
-            
-            // Update performance chart if chart exists
-            if (typeof updatePerformanceChart === 'function') {
-                updatePerformanceChart(throughput, connectionMetrics.avgLatency || 0);
-            }
-        }
-        
-        // Show notification
-        function showNotification(message, type = 'info', duration = 5000) {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.animation = 'slideIn 0.3s ease-out reverse';
-                setTimeout(() => {
-                    if (document.body.contains(notification)) {
-                        document.body.removeChild(notification);
-                    }
-                }, 300);
-            }, duration);
-        }
-        
-        // Format duration in seconds to human readable format
-        function formatDuration(seconds) {
-            if (seconds < 60) return `${seconds}s`;
-            if (seconds < 3600) return `${Math.floor(seconds/60)}m ${seconds%60}s`;
-            return `${Math.floor(seconds/3600)}h ${Math.floor((seconds%3600)/60)}m`;
-        }
-        
-        // Connection health check
-        function performConnectionHealthCheck() {
-            if (!websocket) return false;
-            
-            switch (websocket.readyState) {
-                case WebSocket.CONNECTING:
-                    return 'connecting';
-                case WebSocket.OPEN:
-                    // Check if we've received a heartbeat recently
-                    const timeSinceHeartbeat = connectionMetrics.lastHeartbeat ? 
-                        Date.now() - connectionMetrics.lastHeartbeat.getTime() : Infinity;
-                    
-                    if (timeSinceHeartbeat > heartbeatInterval_ms * 1.5) {
-                        return 'unhealthy';
-                    }
-                    return 'healthy';
-                case WebSocket.CLOSING:
-                    return 'closing';
-                case WebSocket.CLOSED:
-                    return 'closed';
-                default:
-                    return 'unknown';
             }
         }
 
@@ -1269,6 +1724,14 @@
                 default:
                     console.log('Unknown message type received:', data.type);
             }
+            
+            // Cache data after processing updates (throttled to avoid excessive writes)
+            if (!handleWebSocketMessage.cacheTimer) {
+                handleWebSocketMessage.cacheTimer = setTimeout(() => {
+                    saveDataToCache();
+                    handleWebSocketMessage.cacheTimer = null;
+                }, 5000); // Cache at most once every 5 seconds
+            }
         }
         
         // Log significant agent status changes
@@ -1312,7 +1775,7 @@
             }
         }
         
-        // Enhanced connection status with additional metrics
+        // Enhanced connection status with additional metrics and user feedback
         function updateConnectionStatus(status, text) {
             const dot = document.getElementById('connectionStatus');
             const textEl = document.getElementById('connectionText');
@@ -1325,7 +1788,17 @@
                 if (status === 'connected' && connectionMetrics.connectTime) {
                     const uptime = Math.floor((Date.now() - connectionMetrics.connectTime.getTime()) / 1000);
                     displayText += ` (${uptime}s uptime)`;
+                    
+                    // Show success notification on reconnection
+                    if (connectionAttempts > 0) {
+                        showStatusNotification('Connection restored successfully!', 'success', 3000);
+                        hideOfflineNotification();
+                    }
                 }
+                
+                // Add network status indicator
+                const networkIndicator = getNetworkStatusIndicator();
+                displayText += networkIndicator;
                 
                 textEl.textContent = displayText;
             }
@@ -1336,77 +1809,242 @@
                 reconnectInterval = null;
             }
             
+            // Show status-specific notifications
+            showStatusSpecificFeedback(status, text);
+            
             // Update connection metrics display
             updateConnectionMetricsDisplay();
         }
-
-        // Show notification
-        function showNotification(message, type = 'info', duration = 5000) {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
+        
+        function getNetworkStatusIndicator() {
+            if (!networkState.isOnline) {
+                return ' 🔴 Offline';
+            } else if (!networkState.serverReachable) {
+                return ' 🟡 Server unreachable';
+            } else {
+                return ' 🟢 Online';
+            }
+        }
+        
+        function showStatusSpecificFeedback(status, text) {
+            switch (status) {
+                case 'connecting':
+                    if (connectionAttempts > 1) {
+                        showStatusNotification(`Reconnection attempt ${connectionAttempts}/${maxReconnectAttempts}`, 'info', 2000);
+                    }
+                    break;
+                    
+                case 'error':
+                case 'disconnected':
+                    if (connectionAttempts >= maxReconnectAttempts) {
+                        showStatusNotification('Connection failed - switched to offline mode', 'error', 5000);
+                    } else if (connectionAttempts > 0) {
+                        showStatusNotification('Connection lost - retrying...', 'warning', 3000);
+                    }
+                    break;
+                    
+                case 'offline':
+                    showStatusNotification('Offline mode activated - using cached data', 'warning', 4000);
+                    break;
+            }
+        }
+        
+        function showStatusNotification(message, type = 'info', duration = 3000) {
+            // Remove existing notification
+            const existing = document.getElementById('statusNotification');
+            if (existing) {
+                existing.remove();
+            }
             
+            // Create new notification
+            const notification = document.createElement('div');
+            notification.id = 'statusNotification';
+            notification.className = `status-notification ${type}`;
+            
+            const icon = getNotificationIcon(type);
+            notification.innerHTML = `${icon} ${message}`;
+            
+            // Position and show notification
             document.body.appendChild(notification);
             
+            // Auto-hide after duration
             setTimeout(() => {
-                notification.style.animation = 'slideIn 0.3s ease-out reverse';
-                setTimeout(() => {
-                    if (document.body.contains(notification)) {
-                        document.body.removeChild(notification);
-                    }
-                }, 300);
+                if (notification.parentNode) {
+                    notification.style.opacity = '0';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.remove();
+                        }
+                    }, 300);
+                }
             }, duration);
         }
         
-        // Format duration in seconds to human readable format
-        function formatDuration(seconds) {
-            if (seconds < 60) return `${seconds}s`;
-            if (seconds < 3600) return `${Math.floor(seconds/60)}m ${seconds%60}s`;
-            return `${Math.floor(seconds/3600)}h ${Math.floor((seconds%3600)/60)}m`;
+        function getNotificationIcon(type) {
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            return icons[type] || icons.info;
         }
         
-        // Enhanced refresh function
-        function refreshData() {
-            if (websocket && websocket.readyState === WebSocket.OPEN) {
-                sendMessage({ type: 'request_status' });
-                sendMessage({ type: 'request_metrics' });
-                addLogEntry({
-                    time: new Date(),
-                    level: 'info',
-                    message: 'Manual refresh requested',
-                    agent: 'dashboard'
-                });
-            } else {
-                console.warn('Cannot refresh: WebSocket not connected');
-                showNotification('Cannot refresh: Not connected to server', 'warning');
-                loadDemoData();
-            }
-        }
-        
-        // Connection health check
-        function performConnectionHealthCheck() {
-            if (!websocket) return false;
+        // Enhanced connection diagnostics
+        function showConnectionDiagnostics() {
+            const diagnostics = {
+                browserOnline: navigator.onLine,
+                serverReachable: networkState.serverReachable,
+                websocketState: connectionState,
+                connectionAttempts: connectionAttempts,
+                lastCheck: networkState.lastCheck,
+                uptime: connectionMetrics.connectTime ? Math.floor((Date.now() - connectionMetrics.connectTime.getTime()) / 1000) : 0,
+                messagesSent: connectionMetrics.messagesSent,
+                messagesReceived: connectionMetrics.messagesReceived,
+                lastHeartbeat: connectionMetrics.lastHeartbeat,
+                cacheAvailable: hasValidCachedData()
+            };
             
-            switch (websocket.readyState) {
-                case WebSocket.CONNECTING:
-                    return 'connecting';
-                case WebSocket.OPEN:
-                    // Check if we've received a heartbeat recently
-                    const timeSinceHeartbeat = connectionMetrics.lastHeartbeat ? 
-                        Date.now() - connectionMetrics.lastHeartbeat.getTime() : Infinity;
-                    
-                    if (timeSinceHeartbeat > heartbeatInterval_ms * 1.5) {
-                        return 'unhealthy';
-                    }
-                    return 'healthy';
-                case WebSocket.CLOSING:
-                    return 'closing';
-                case WebSocket.CLOSED:
-                    return 'closed';
-                default:
-                    return 'unknown';
+            const modal = document.getElementById('detailModal');
+            const title = document.getElementById('modalTitle');
+            const body = document.getElementById('modalBody');
+            
+            title.textContent = 'Connection Diagnostics';
+            body.innerHTML = `
+                <div class="diagnostics-grid">
+                    <div class="diagnostic-item">
+                        <strong>Browser Status:</strong>
+                        <span class="status-badge ${diagnostics.browserOnline ? 'success' : 'error'}">
+                            ${diagnostics.browserOnline ? '🟢 Online' : '🔴 Offline'}
+                        </span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Server Reachable:</strong>
+                        <span class="status-badge ${diagnostics.serverReachable ? 'success' : 'error'}">
+                            ${diagnostics.serverReachable ? '🟢 Yes' : '🔴 No'}
+                        </span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>WebSocket State:</strong>
+                        <span class="status-badge ${diagnostics.websocketState === 'connected' ? 'success' : 'warning'}">
+                            ${diagnostics.websocketState}
+                        </span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Connection Attempts:</strong>
+                        <span>${diagnostics.connectionAttempts}/${maxReconnectAttempts}</span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Last Network Check:</strong>
+                        <span>${diagnostics.lastCheck ? diagnostics.lastCheck.toLocaleTimeString() : 'Never'}</span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Connection Uptime:</strong>
+                        <span>${diagnostics.uptime > 0 ? diagnostics.uptime + 's' : 'Not connected'}</span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Messages Sent:</strong>
+                        <span>${diagnostics.messagesSent}</span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Messages Received:</strong>
+                        <span>${diagnostics.messagesReceived}</span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Last Heartbeat:</strong>
+                        <span>${diagnostics.lastHeartbeat ? diagnostics.lastHeartbeat.toLocaleTimeString() : 'Never'}</span>
+                    </div>
+                    <div class="diagnostic-item">
+                        <strong>Cache Available:</strong>
+                        <span class="status-badge ${diagnostics.cacheAvailable ? 'success' : 'warning'}">
+                            ${diagnostics.cacheAvailable ? '🟢 Yes' : '🟡 No/Expired'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="diagnostic-actions">
+                    <button class="refresh-btn" onclick="retryConnection()">🔄 Retry Connection</button>
+                    <button class="refresh-btn" onclick="clearCache()">🗑️ Clear Cache</button>
+                    <button class="refresh-btn" onclick="checkNetworkConnectivity()">📡 Test Network</button>
+                </div>
+            `;
+            
+            modal.style.display = 'flex';
+        }
+        
+        // Add diagnostic styles
+        function addDiagnosticStyles() {
+            const style = document.createElement('style');
+            style.textContent = `
+                .diagnostics-grid {
+                    display: grid;
+                    gap: 12px;
+                    margin-bottom: 20px;
+                }
+                
+                .diagnostic-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 8px;
+                    background: var(--card-background);
+                    border-radius: 6px;
+                    border: 1px solid var(--border-color);
+                }
+                
+                .diagnostic-actions {
+                    display: flex;
+                    gap: 10px;
+                    justify-content: center;
+                    flex-wrap: wrap;
+                }
+                
+                .status-badge {
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+                
+                .status-badge.success {
+                    background: rgba(76, 175, 80, 0.2);
+                    color: var(--success-color);
+                }
+                
+                .status-badge.warning {
+                    background: rgba(255, 193, 7, 0.2);
+                    color: var(--warning-color);
+                }
+                
+                .status-badge.error {
+                    background: rgba(244, 67, 54, 0.2);
+                    color: var(--error-color);
+                }
+            `;
+            
+            if (!document.querySelector('style[data-diagnostic-styles]')) {
+                style.setAttribute('data-diagnostic-styles', 'true');
+                document.head.appendChild(style);
             }
         }
+        
+        // Add diagnostic button to header
+        function addDiagnosticButton() {
+            const headerControls = document.querySelector('.header-controls');
+            if (!headerControls || document.getElementById('diagnosticsBtn')) return;
+            
+            const diagnosticsBtn = document.createElement('button');
+            diagnosticsBtn.id = 'diagnosticsBtn';
+            diagnosticsBtn.className = 'refresh-btn';
+            diagnosticsBtn.innerHTML = '🔍 Diagnostics';
+            diagnosticsBtn.onclick = showConnectionDiagnostics;
+            diagnosticsBtn.title = 'Show connection diagnostics';
+            
+            headerControls.appendChild(diagnosticsBtn);
+        }
+
+        // Demo data for fallback
+        function loadDemoData() {
             agents = [
                 {
                     id: 'security_' + Date.now(),
@@ -1721,66 +2359,6 @@
                     }
                 }
             });
-
-            // WebSocket Performance chart
-            const perfCtx = document.getElementById('performanceChart');
-            if (perfCtx) {
-                charts.performance = new Chart(perfCtx.getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: [],
-                        datasets: [{
-                            label: 'Throughput (msg/s)',
-                            data: [],
-                            borderColor: '#2196F3',
-                            backgroundColor: 'rgba(33,150,243,0.1)',
-                            tension: 0.4,
-                            yAxisID: 'y'
-                        }, {
-                            label: 'Latency (ms)',
-                            data: [],
-                            borderColor: '#ff6b6b',
-                            backgroundColor: 'rgba(255,107,107,0.1)',
-                            tension: 0.4,
-                            yAxisID: 'y1'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Messages/second'
-                                }
-                            },
-                            y1: {
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Latency (ms)'
-                                },
-                                grid: {
-                                    drawOnChartArea: false,
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                position: 'top'
-                            }
-                        }
-                    }
-                });
-            }
         }
 
         // Update charts
@@ -1815,31 +2393,6 @@
             charts.taskDistribution.update();
         }
 
-        // Update performance chart with WebSocket metrics
-        function updatePerformanceChart(throughput, latency) {
-            if (!charts.performance) return;
-            
-            const now = new Date();
-            const timeLabel = formatTime(now);
-            
-            // Keep only last 20 data points for performance
-            const maxDataPoints = 20;
-            
-            // Add new data point
-            charts.performance.data.labels.push(timeLabel);
-            charts.performance.data.datasets[0].data.push(parseFloat(throughput));
-            charts.performance.data.datasets[1].data.push(parseInt(latency));
-            
-            // Remove old data points if we exceed the maximum
-            if (charts.performance.data.labels.length > maxDataPoints) {
-                charts.performance.data.labels.shift();
-                charts.performance.data.datasets[0].data.shift();
-                charts.performance.data.datasets[1].data.shift();
-            }
-            
-            charts.performance.update('none');
-        }
-
         // Activity heatmap
         function generateActivityHeatmap() {
             const container = document.getElementById('activityHeatmap');
@@ -1870,17 +2423,8 @@
 
         function refreshData() {
             if (websocket && websocket.readyState === WebSocket.OPEN) {
-                sendMessage({ type: 'request_status' });
-                sendMessage({ type: 'request_metrics' });
-                addLogEntry({
-                    time: new Date(),
-                    level: 'info',
-                    message: 'Manual refresh requested',
-                    agent: 'dashboard'
-                });
+                websocket.send(JSON.stringify({ type: 'request_status' }));
             } else {
-                console.warn('Cannot refresh: WebSocket not connected');
-                showNotification('Cannot refresh: Not connected to server', 'warning');
                 loadDemoData();
             }
         }
@@ -1985,23 +2529,49 @@
         function filterAgents() {
             const statusFilter = document.getElementById('statusFilter').value;
             const typeFilter = document.getElementById('typeFilter').value;
+            const priorityFilter = document.getElementById('priorityFilter').value;
+            const sortFilter = document.getElementById('sortFilter').value;
             const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+            const dateFromFilter = document.getElementById('dateFromFilter').value;
+            const dateToFilter = document.getElementById('dateToFilter').value;
 
-            const filteredAgents = agents.filter(agent => {
+            let filteredAgents = agents.filter(agent => {
+                // Status filtering
                 const matchesStatus = !statusFilter || agent.status === statusFilter;
+                
+                // Type filtering
                 const matchesType = !typeFilter || agent.type === typeFilter;
-                const matchesSearch = !searchFilter ||
-                    agent.id.toLowerCase().includes(searchFilter) ||
-                    agent.task.toLowerCase().includes(searchFilter);
+                
+                // Priority filtering
+                const matchesPriority = !priorityFilter || agent.priority === priorityFilter;
+                
+                // Enhanced search with fuzzy matching
+                const matchesSearch = !searchFilter || fuzzyMatch(searchFilter, [
+                    agent.id,
+                    agent.task,
+                    agent.error || '',
+                    agent.type,
+                    agent.priority,
+                    agent.status
+                ]);
+                
+                // Date range filtering
+                const matchesDateRange = checkDateRange(agent.startTime, dateFromFilter, dateToFilter);
 
-                return matchesStatus && matchesType && matchesSearch;
+                return matchesStatus && matchesType && matchesPriority && matchesSearch && matchesDateRange;
             });
+
+            // Sorting
+            filteredAgents = sortAgents(filteredAgents, sortFilter);
+
+            // Update filter summary
+            updateFilterSummary(filteredAgents.length, agents.length);
 
             // Update agents display with filtered results
             const container = document.getElementById('activeAgents');
 
             if (filteredAgents.length === 0) {
-                container.innerHTML = '<p>No agents match the current filters</p>';
+                container.innerHTML = '<div class="card"><p>No agents match the current filters</p></div>';
                 return;
             }
 
@@ -2025,10 +2595,213 @@
                         <span class="metric-label">Type</span>
                         <span class="metric-value">${agent.type}</span>
                     </div>
+                    ${agent.startTime ? `<div class="metric">
+                        <span class="metric-label">Started</span>
+                        <span class="metric-value">${formatTime(agent.startTime)}</span>
+                    </div>` : ''}
                 </div>
             `).join('');
 
             container.innerHTML = agentCards;
+            
+            // Save filter state
+            saveFilterState();
+        }
+
+        // Enhanced search with fuzzy matching
+        function fuzzyMatch(searchTerm, searchFields) {
+            const lowerSearchTerm = searchTerm.toLowerCase();
+            
+            for (const field of searchFields) {
+                const fieldValue = (field || '').toString().toLowerCase();
+                
+                // Exact match
+                if (fieldValue.includes(lowerSearchTerm)) {
+                    return true;
+                }
+                
+                // Fuzzy matching with tolerance
+                if (fuzzyMatchScore(lowerSearchTerm, fieldValue) > 0.6) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // Simple fuzzy matching algorithm
+        function fuzzyMatchScore(search, target) {
+            if (search === target) return 1.0;
+            if (search.length === 0) return 1.0;
+            if (target.length === 0) return 0.0;
+
+            let score = 0;
+            let searchIndex = 0;
+            
+            for (let i = 0; i < target.length && searchIndex < search.length; i++) {
+                if (target[i] === search[searchIndex]) {
+                    score++;
+                    searchIndex++;
+                }
+            }
+            
+            return score / search.length;
+        }
+
+        // Date range checking
+        function checkDateRange(agentDate, fromDate, toDate) {
+            if (!fromDate && !toDate) return true;
+            if (!agentDate) return !fromDate && !toDate;
+            
+            const agentDateObj = new Date(agentDate);
+            const fromDateObj = fromDate ? new Date(fromDate) : null;
+            const toDateObj = toDate ? new Date(toDate) : null;
+            
+            if (fromDateObj && agentDateObj < fromDateObj) return false;
+            if (toDateObj && agentDateObj > new Date(toDateObj.getTime() + 86400000)) return false; // Add one day for inclusive range
+            
+            return true;
+        }
+
+        // Sorting functionality
+        function sortAgents(agents, sortType) {
+            const sortedAgents = [...agents];
+            
+            switch (sortType) {
+                case 'oldest':
+                    return sortedAgents.sort((a, b) => new Date(a.startTime || 0) - new Date(b.startTime || 0));
+                case 'priority-high':
+                    return sortedAgents.sort((a, b) => {
+                        const priorityOrder = { high: 3, medium: 2, low: 1 };
+                        return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+                    });
+                case 'priority-low':
+                    return sortedAgents.sort((a, b) => {
+                        const priorityOrder = { high: 3, medium: 2, low: 1 };
+                        return (priorityOrder[a.priority] || 0) - (priorityOrder[b.priority] || 0);
+                    });
+                case 'status':
+                    return sortedAgents.sort((a, b) => {
+                        const statusOrder = { running: 4, pending: 3, error: 2, blocked: 1, completed: 0 };
+                        return (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
+                    });
+                case 'progress':
+                    return sortedAgents.sort((a, b) => (b.progress || 0) - (a.progress || 0));
+                case 'newest':
+                default:
+                    return sortedAgents.sort((a, b) => new Date(b.startTime || 0) - new Date(a.startTime || 0));
+            }
+        }
+
+        // Update filter summary
+        function updateFilterSummary(filteredCount, totalCount) {
+            const summaryElement = document.getElementById('filterSummary');
+            const filterCountElement = document.getElementById('filterCount');
+            const totalCountElement = document.getElementById('totalCount');
+            
+            if (filterCountElement) filterCountElement.textContent = filteredCount;
+            if (totalCountElement) totalCountElement.textContent = totalCount;
+            
+            // Highlight when filters are active
+            if (summaryElement) {
+                summaryElement.style.opacity = filteredCount < totalCount ? '1' : '0.8';
+            }
+        }
+
+        // Clear all filters
+        function clearAllFilters() {
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('typeFilter').value = '';
+            document.getElementById('priorityFilter').value = '';
+            document.getElementById('sortFilter').value = 'newest';
+            document.getElementById('searchFilter').value = '';
+            document.getElementById('dateFromFilter').value = '';
+            document.getElementById('dateToFilter').value = '';
+            
+            filterAgents();
+        }
+
+        // Export filtered agents
+        function exportFilteredAgents() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const priorityFilter = document.getElementById('priorityFilter').value;
+            const searchFilter = document.getElementById('searchFilter').value;
+            
+            let filteredAgents = agents.filter(agent => {
+                const matchesStatus = !statusFilter || agent.status === statusFilter;
+                const matchesType = !typeFilter || agent.type === typeFilter;
+                const matchesPriority = !priorityFilter || agent.priority === priorityFilter;
+                const matchesSearch = !searchFilter || fuzzyMatch(searchFilter, [
+                    agent.id, agent.task, agent.error || '', agent.type, agent.priority, agent.status
+                ]);
+                return matchesStatus && matchesType && matchesPriority && matchesSearch;
+            });
+            
+            const csvData = [
+                ['ID', 'Type', 'Status', 'Priority', 'Progress', 'Task', 'Start Time', 'Error'],
+                ...filteredAgents.map(agent => [
+                    agent.id,
+                    agent.type,
+                    agent.status,
+                    agent.priority,
+                    agent.progress + '%',
+                    agent.task,
+                    agent.startTime ? formatTime(agent.startTime) : '',
+                    agent.error || ''
+                ])
+            ].map(row => row.join(',')).join('\n');
+            
+            const blob = new Blob([csvData], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `filtered-agents-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Save filter state to localStorage
+        function saveFilterState() {
+            if (typeof localStorage === 'undefined') return;
+            
+            const filterState = {
+                status: document.getElementById('statusFilter').value,
+                type: document.getElementById('typeFilter').value,
+                priority: document.getElementById('priorityFilter').value,
+                sort: document.getElementById('sortFilter').value,
+                search: document.getElementById('searchFilter').value,
+                dateFrom: document.getElementById('dateFromFilter').value,
+                dateTo: document.getElementById('dateToFilter').value
+            };
+            
+            localStorage.setItem('agentFilters', JSON.stringify(filterState));
+        }
+
+        // Load filter state from localStorage
+        function loadFilterState() {
+            if (typeof localStorage === 'undefined') return;
+            
+            const savedState = localStorage.getItem('agentFilters');
+            if (!savedState) return;
+            
+            try {
+                const filterState = JSON.parse(savedState);
+                document.getElementById('statusFilter').value = filterState.status || '';
+                document.getElementById('typeFilter').value = filterState.type || '';
+                document.getElementById('priorityFilter').value = filterState.priority || '';
+                document.getElementById('sortFilter').value = filterState.sort || 'newest';
+                document.getElementById('searchFilter').value = filterState.search || '';
+                document.getElementById('dateFromFilter').value = filterState.dateFrom || '';
+                document.getElementById('dateToFilter').value = filterState.dateTo || '';
+                
+                // Apply the loaded filters
+                setTimeout(() => filterAgents(), 100);
+            } catch (error) {
+                console.error('Error loading filter state:', error);
+            }
         }
 
         function filterLogs() {
@@ -2103,27 +2876,6 @@
             updateSystemResources();
         }
 
-        // Performance monitoring
-        function updatePerformanceMetrics() {
-            if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
-            
-            const performanceData = {
-                connectionUptime: connectionMetrics.connectTime ? 
-                    Date.now() - connectionMetrics.connectTime.getTime() : 0,
-                messagesSent: connectionMetrics.messagesSent,
-                messagesReceived: connectionMetrics.messagesReceived,
-                reconnects: connectionMetrics.reconnects,
-                lastHeartbeat: connectionMetrics.lastHeartbeat
-            };
-            
-            // Send performance data if connected
-            sendMessage({
-                type: 'performance_metrics',
-                data: performanceData,
-                timestamp: Date.now()
-            });
-        }
-        
         // Load theme from localStorage
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme) {
@@ -2131,34 +2883,16 @@
             document.body.className = currentTheme;
         }
 
-        // Enhanced cleanup function
+        // Clean up connections
         function cleanup() {
-            console.log('Cleaning up dashboard connections...');
-            
-            // Stop all intervals
+            if (websocket) {
+                websocket.close(1000, 'Dashboard closing');
+                websocket = null;
+            }
             if (reconnectInterval) {
                 clearInterval(reconnectInterval);
                 reconnectInterval = null;
             }
-            
-            stopHeartbeat();
-            
-            // Close WebSocket connection gracefully
-            if (websocket) {
-                connectionState = 'disconnected';
-                websocket.close(1000, 'Dashboard closing');
-                websocket = null;
-            }
-            
-            // Reset connection metrics
-            connectionMetrics = {
-                connectTime: null,
-                lastHeartbeat: null,
-                messagesSent: 0,
-                messagesReceived: 0,
-                reconnects: 0,
-                totalDowntime: 0
-            };
         }
 
         // Handle page unload

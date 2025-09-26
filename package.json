@@ -11,6 +11,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:coverage:watch": "jest --coverage --watch",
+    "test:coverage:report": "jest --coverage --coverageReporters=text-lcov | npx coveralls",
+    "coverage:open": "open coverage/lcov-report/index.html || xdg-open coverage/lcov-report/index.html",
     "setup": "bash install.sh"
   },
   "keywords": [
@@ -32,12 +35,11 @@
   "engines": {
     "node": ">=14.0.0"
   },
-  "dependencies": {},
   "devDependencies": {
+    "@testing-library/dom": "^9.3.4",
+    "@testing-library/jest-dom": "^6.8.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
-    "@testing-library/jest-dom": "^6.1.4",
-    "@testing-library/dom": "^9.3.3",
     "jest-websocket-mock": "^2.5.0"
   },
   "files": [

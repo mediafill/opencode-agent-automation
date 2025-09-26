@@ -230,6 +230,33 @@ curl http://localhost:8080/agents/status
 curl http://localhost:8080/agents/logs
 ```
 
+### WebSocket Performance Monitoring
+
+The system includes enhanced WebSocket monitoring with real-time performance metrics:
+
+**Dashboard Features:**
+- **Connection Metrics** - Real-time uptime, message counts, and reconnection tracking
+- **Performance Visualization** - Live charts showing throughput (messages/second) and latency
+- **Health Indicators** - Connection reliability percentage and average response times
+- **Auto-Reconnection** - Exponential backoff with intelligent retry logic (1s to 30s delays)
+
+**Key Metrics Tracked:**
+- Uptime and connection stability
+- Messages sent/received counters  
+- WebSocket latency with ping/pong measurements
+- Throughput calculations (messages per second)
+- Reliability scoring based on connection health
+
+```bash
+# Open the dashboard to view real-time WebSocket metrics
+open http://localhost:8080/dashboard
+
+# Monitor WebSocket performance in terminal
+agents monitor websocket
+```
+
+The dashboard automatically tracks connection quality and provides visual feedback on system performance, helping identify potential issues with real-time communication.
+
 ## File Structure
 
 ```

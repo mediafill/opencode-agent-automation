@@ -6,24 +6,40 @@ module.exports = {
     '**/?(*.)+(spec|test).js'
   ],
   collectCoverageFrom: [
-    'scripts/monitor-dashboard.html',
+    'bin/**/*.js',
+    'scripts/**/*.js',
+    'tests/dashboard-functions.js',
     '!**/node_modules/**',
     '!**/logs/**',
-    '!**/.claude/**'
+    '!**/.claude/**',
+    '!**/coverage/**',
+    '!**/*.test.js',
+    '!**/*.spec.js',
+    '!**/jest.config.js',
+    '!**/setup.js',
+    '!**/__mocks__/**',
+    '!**/examples/**'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: [
     'text',
     'lcov',
-    'html'
+    'html',
+    'json-summary'
   ],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  },
   verbose: true,
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   testTimeout: 10000,
   collectCoverage: true,
-  moduleNameMapping: {
-    '^chart.js$': '<rootDir>/tests/__mocks__/chart.js'
-  },
+  modulePathIgnorePatterns: [],
   testEnvironmentOptions: {
     resources: 'usable',
     runScripts: 'dangerously'
