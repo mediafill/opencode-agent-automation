@@ -80,6 +80,35 @@ class TaskDelegator:
         # Parse objective for keywords
         objective_lower = objective.lower()
 
+        # Special case: If objective is very specific and detailed, create custom tasks first
+        if len(objective.split()) > 8:  # Long, detailed objectives
+            tasks.append({
+                'id': f'custom_objective_{int(time.time())}',
+                'type': 'custom',
+                'priority': 'high',
+                'description': f'Implement specific requirement: {objective}',
+                'files_pattern': '**/*'
+            })
+
+        # Frontend/Dashboard tasks
+        if any(word in objective_lower for word in ['frontend', 'dashboard', 'viewer', 'ui', 'interface', 'html', 'css', 'javascript']):
+            tasks.extend([
+                {
+                    'id': f'frontend_implementation_{int(time.time())}',
+                    'type': 'frontend',
+                    'priority': 'high',
+                    'description': f'Implement frontend component: {objective}',
+                    'files_pattern': '**/*.{html,css,js,ts,vue,react}'
+                },
+                {
+                    'id': f'frontend_styling_{int(time.time())}',
+                    'type': 'frontend',
+                    'priority': 'medium',
+                    'description': 'Add responsive styling and improve user experience',
+                    'files_pattern': '**/*.{css,scss,html}'
+                }
+            ])
+
         # Security tasks
         if any(word in objective_lower for word in ['security', 'secure', 'production', 'audit']):
             tasks.extend([
@@ -132,8 +161,11 @@ class TaskDelegator:
                 }
             ])
 
-        # Testing tasks
-        if any(word in objective_lower for word in ['test', 'testing', 'coverage', 'quality']):
+        # Testing tasks - BUT only if not part of a specific non-testing objective
+        testing_context = any(word in objective_lower for word in ['unit test', 'integration test', 'test coverage', 'testing framework'])
+        generic_test_mention = 'test' in objective_lower and not any(phrase in objective_lower for phrase in ['test the', 'test this', 'test our'])
+        
+        if testing_context or (generic_test_mention and len(objective.split()) < 5):
             tasks.extend([
                 {
                     'id': f'unit_tests_{int(time.time())}',

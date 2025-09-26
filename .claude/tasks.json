@@ -1,8 +1,27 @@
 {
-  "created_at": "2024-01-01T00:00:00Z",
-  "total_tasks": 0,
-  "completed": 0,
-  "in_progress": 0,
-  "pending": 0,
-  "tasks": []
+  "created_at": "2025-09-26T03:15:48.889912",
+  "total_tasks": 3,
+  "tasks": [
+    {
+      "id": "unit_tests_1758878148",
+      "type": "testing",
+      "priority": "high",
+      "description": "Create comprehensive unit tests for all core functions and classes with edge case coverage",
+      "files_pattern": "**/*.{py,js,ts,java,rb,php}"
+    },
+    {
+      "id": "integration_tests_1758878148",
+      "type": "testing",
+      "priority": "medium",
+      "description": "Build integration tests for API endpoints and database interactions",
+      "files_pattern": "test/**/*,tests/**/*,**/*test*"
+    },
+    {
+      "id": "test_coverage_1758878148",
+      "type": "testing",
+      "priority": "medium",
+      "description": "Set up test coverage reporting and ensure minimum 80% coverage target",
+      "files_pattern": "**/*"
+    }
+  ]
 }
